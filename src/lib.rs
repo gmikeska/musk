@@ -20,11 +20,34 @@
 //! let builder = SpendBuilder::new(compiled, utxo);
 //! let tx = builder.finalize(witness_values)?;
 //! ```
+//!
+//! # Connecting to Nodes
+//!
+//! Use the `RpcClient` to connect to Elements/Liquid nodes:
+//!
+//! ```ignore
+//! use musk::{NodeConfig, RpcClient};
+//!
+//! // From config file
+//! let config = NodeConfig::from_file("musk.toml")?;
+//! let client = RpcClient::new(config)?;
+//!
+//! // Or from URL
+//! let client = RpcClient::from_url("http://localhost:18884", "user", "pass")?;
+//!
+//! // Use with contracts
+//! let address = compiled.address(client.address_params());
+//! let txid = client.send_to_address(&address, 100_000_000)?;
+//! ```
 
 pub mod address;
 pub mod client;
+#[cfg(feature = "rpc")]
+pub mod config;
 pub mod contract;
 pub mod error;
+#[cfg(feature = "rpc")]
+pub mod rpc_client;
 pub mod spend;
 pub mod util;
 pub mod witness;
@@ -34,6 +57,12 @@ pub use contract::{CompiledContract, Contract};
 pub use error::{ContractError, SpendError};
 pub use spend::SpendBuilder;
 pub use client::NodeClient;
+
+// Re-export config and RPC client when feature is enabled
+#[cfg(feature = "rpc")]
+pub use config::{ConfigError, Network, NodeConfig, RpcConfig};
+#[cfg(feature = "rpc")]
+pub use rpc_client::RpcClient;
 
 // Re-export SimplicityHL types for convenience
 pub use simplicityhl::{Arguments, Parameters, Value, WitnessValues};

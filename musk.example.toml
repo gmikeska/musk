@@ -1,0 +1,36 @@
+# Musk Configuration Example
+# Copy this file to musk.toml and customize for your setup
+
+# =============================================================================
+# Network Configuration
+# =============================================================================
+[network]
+# Options: "regtest", "testnet", "liquidv1" (mainnet)
+network = "regtest"
+
+# =============================================================================
+# RPC Connection
+# =============================================================================
+[rpc]
+# Default ports by network:
+#   - regtest:  18884
+#   - testnet:  18892
+#   - liquidv1: 7041
+url = "http://127.0.0.1:18884"
+user = "user"
+password = "password"
+
+# =============================================================================
+# Chain Configuration
+# =============================================================================
+[chain]
+# Genesis block hash (required for transaction signing)
+# If not provided, will be fetched from the node automatically
+#
+# Common genesis hashes:
+#   - Elements regtest: varies (generated per chain)
+#   - Liquid testnet: a771d8a8e75d8fa1b9bc08af6a5bde4f4fb4d7f01bd8b4b36e7cd97fb4b3d4e3
+#   - Liquid mainnet: 1466275836220db2944ca059a3a10ef6fd2ea684b0688d2c379296888a206003
+#
+# genesis_hash = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+
