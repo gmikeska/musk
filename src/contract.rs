@@ -17,8 +17,8 @@ impl Contract {
     /// Create a contract from source code
     pub fn from_source(source: &str) -> Result<Self, ContractError> {
         let source = Arc::from(source);
-        let template = TemplateProgram::new(Arc::clone(&source))
-            .map_err(ContractError::ParseError)?;
+        let template =
+            TemplateProgram::new(Arc::clone(&source)).map_err(ContractError::ParseError)?;
 
         Ok(Self { source, template })
     }
@@ -92,7 +92,10 @@ impl CompiledContract {
     }
 
     /// Satisfy the contract with witness values, producing a satisfied program
-    pub fn satisfy(&self, witness_values: WitnessValues) -> Result<SatisfiedContract, ContractError> {
+    pub fn satisfy(
+        &self,
+        witness_values: WitnessValues,
+    ) -> Result<SatisfiedContract, ContractError> {
         let satisfied = self
             .inner
             .satisfy(witness_values)
@@ -132,4 +135,3 @@ impl SatisfiedContract {
         &self.inner
     }
 }
-

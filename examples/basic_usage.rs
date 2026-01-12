@@ -3,9 +3,7 @@
 //! This example shows how to use musk in a production application
 
 use musk::{
-    client::NodeClient,
-    Contract, Arguments, SpendBuilder,
-    WitnessValues, Value, WitnessName,
+    client::NodeClient, Arguments, Contract, SpendBuilder, Value, WitnessName, WitnessValues,
 };
 use std::collections::HashMap;
 
@@ -14,12 +12,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 1. Load a contract
     println!("1. Loading contract...");
-    let contract = Contract::from_source(r#"
+    let contract = Contract::from_source(
+        r#"
         fn main() {
             // Simple contract that always succeeds
             assert!(true);
         }
-    "#)?;
+    "#,
+    )?;
     println!("   ✓ Contract loaded");
 
     // 2. Check parameters
@@ -49,4 +49,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-

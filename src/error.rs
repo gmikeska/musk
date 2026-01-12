@@ -45,4 +45,3 @@ pub enum SpendError {
     #[error("Type inference error: {0}")]
     TypeInferenceError(String),
 }
-

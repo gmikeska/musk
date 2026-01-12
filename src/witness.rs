@@ -21,7 +21,8 @@ impl WitnessBuilder {
 
     /// Add a witness value
     pub fn with(mut self, name: &str, value: Value) -> Self {
-        self.values.insert(WitnessName::from_str_unchecked(name), value);
+        self.values
+            .insert(WitnessName::from_str_unchecked(name), value);
         self
     }
 
@@ -56,4 +57,3 @@ impl Default for WitnessBuilder {
         Self::new()
     }
 }
-

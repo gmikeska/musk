@@ -22,4 +22,3 @@ pub fn create_taproot_info(compiled: &CompiledProgram) -> Result<TaprootSpendInf
         .finalize(&Secp256k1::new(), internal_key)
         .map_err(|e| ContractError::TaprootError(e.to_string()))
 }
-

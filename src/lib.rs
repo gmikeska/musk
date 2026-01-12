@@ -53,10 +53,10 @@ pub mod util;
 pub mod witness;
 
 // Re-export core types
+pub use client::NodeClient;
 pub use contract::{CompiledContract, Contract};
 pub use error::{ContractError, SpendError};
 pub use spend::SpendBuilder;
-pub use client::NodeClient;
 
 // Re-export config and RPC client when feature is enabled
 #[cfg(feature = "rpc")]
@@ -65,10 +65,9 @@ pub use config::{ConfigError, Network, NodeConfig, RpcConfig};
 pub use rpc_client::RpcClient;
 
 // Re-export SimplicityHL types for convenience
-pub use simplicityhl::{Arguments, Parameters, Value, WitnessValues};
 pub use simplicityhl::str::WitnessName;
+pub use simplicityhl::{Arguments, Parameters, Value, WitnessValues};
 
 // Re-export commonly used external types
 pub use elements;
 pub use elements::{Address, AddressParams, Transaction, Txid};
-

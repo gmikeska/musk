@@ -9,7 +9,7 @@
 //!   - Elements node running (regtest mode)
 //!   - RPC credentials configured
 
-use musk::{Contract, NodeConfig, RpcClient, Arguments, SpendBuilder};
+use musk::{Arguments, Contract, NodeConfig, RpcClient, SpendBuilder};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Musk RpcClient Example\n");
@@ -18,32 +18,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Method 1: Load config from file
     // ==========================================================================
     println!("1. Loading config from file...");
-    
+
     // Uncomment to load from file:
     // let client = RpcClient::from_config_file("musk.toml")?;
-    
+
     // ==========================================================================
     // Method 2: Create config programmatically
     // ==========================================================================
     println!("2. Creating config programmatically...");
-    
-    let config = NodeConfig::regtest()
-        .with_rpc("http://127.0.0.1:18884", "user", "password");
-    
+
+    let config = NodeConfig::regtest().with_rpc("http://127.0.0.1:18884", "user", "password");
+
     println!("   Network: {}", config.network());
     println!("   RPC URL: {}", config.rpc.url);
-    
+
     // Try to connect (will fail if node isn't running)
     println!("\n3. Attempting to connect to node...");
     match RpcClient::new(config) {
         Ok(client) => {
             println!("   ✓ Client created");
-            
+
             // Test connection
             match client.test_connection() {
                 Ok(()) => {
                     println!("   ✓ Connection successful!");
-                    
+
                     // Get some info
                     if let Ok(count) = client.get_block_count() {
                         println!("   Block count: {}", count);
@@ -51,7 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     if let Ok(balance) = client.get_balance() {
                         println!("   Balance: {} BTC", balance);
                     }
-                    
+
                     // Demonstrate contract workflow
                     demonstrate_contract_workflow(&client)?;
                 }
@@ -73,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   NodeConfig::regtest() - Default regtest config");
     println!("   NodeConfig::testnet() - Default testnet config");
     println!("   NodeConfig::liquid()  - Default Liquid mainnet config");
-    
+
     // ==========================================================================
     // Method 4: Save config to file
     // ==========================================================================
@@ -97,33 +96,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn demonstrate_contract_workflow(client: &RpcClient) -> Result<(), Box<dyn std::error::Error>> {
     use musk::client::NodeClient;
-    
+
     println!("\n6. Contract workflow demonstration...");
-    
+
     // Load a simple contract
     let contract_source = r#"
 fn main() {
     assert!(true);
 }
 "#;
-    
+
     let contract = Contract::from_source(contract_source)?;
     println!("   ✓ Contract loaded");
-    
+
     let compiled = contract.instantiate(Arguments::default())?;
     println!("   ✓ Contract compiled");
     println!("   CMR: {}", compiled.cmr());
-    
+
     // Generate address using client's network params
     let address = compiled.address(client.address_params());
     println!("   Address: {}", address);
-    
+
     // Fund the address (requires wallet with funds)
     println!("\n   Funding contract address...");
-    match client.send_to_address(&address, 100_000_000) { // 1 BTC
+    match client.send_to_address(&address, 100_000_000) {
+        // 1 BTC
         Ok(txid) => {
             println!("   ✓ Funded! txid: {}", txid);
-            
+
             // Generate a block to confirm
             match client.generate_blocks(1) {
                 Ok(_) => println!("   ✓ Block generated"),
@@ -135,7 +135,6 @@ fn main() {
             println!("   This is expected if wallet has no funds");
         }
     }
-    
+
     Ok(())
 }
-

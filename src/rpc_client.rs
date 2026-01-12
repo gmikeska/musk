@@ -27,7 +27,7 @@
 //! ```
 
 use crate::client::{ClientResult, NodeClient, Utxo};
-use crate::config::{NodeConfig, Network};
+use crate::config::{Network, NodeConfig};
 use crate::error::ContractError;
 use elements::{encode::deserialize, hex::FromHex, Address, BlockHash, Transaction, Txid};
 use std::str::FromStr;
@@ -89,14 +89,18 @@ impl RpcClient {
     }
 
     /// Create for a specific network with default settings
-    pub fn for_network(network: Network, user: &str, password: &str) -> Result<Self, ContractError> {
+    pub fn for_network(
+        network: Network,
+        user: &str,
+        password: &str,
+    ) -> Result<Self, ContractError> {
         let config = match network {
             Network::Regtest => NodeConfig::regtest(),
             Network::Testnet => NodeConfig::testnet(),
             Network::Liquid => NodeConfig::liquid(),
         }
         .with_rpc(&network.default_rpc_url(), user, password);
-        
+
         Self::new(config)
     }
 
@@ -154,8 +158,8 @@ impl RpcClient {
                 format!("Failed to serialize params: {}", e),
             ))
         })?;
-        
-        let raw_params: Box<serde_json::value::RawValue> = 
+
+        let raw_params: Box<serde_json::value::RawValue> =
             serde_json::value::RawValue::from_string(params_json).map_err(|e| {
                 ContractError::IoError(std::io::Error::new(
                     std::io::ErrorKind::Other,
@@ -207,8 +211,7 @@ impl NodeClient for RpcClient {
         // Convert satoshis to BTC (Elements uses BTC units in RPC)
         let amount_btc = amount as f64 / 100_000_000.0;
 
-        let txid_str: String =
-            self.call("sendtoaddress", &[addr_str.into(), amount_btc.into()])?;
+        let txid_str: String = self.call("sendtoaddress", &[addr_str.into(), amount_btc.into()])?;
 
         Txid::from_str(&txid_str).map_err(|e| {
             ContractError::IoError(std::io::Error::new(
@@ -219,18 +222,14 @@ impl NodeClient for RpcClient {
     }
 
     fn get_transaction(&self, txid: &Txid) -> ClientResult<Transaction> {
-        let result: serde_json::Value =
-            self.call("gettransaction", &[txid.to_string().into()])?;
+        let result: serde_json::Value = self.call("gettransaction", &[txid.to_string().into()])?;
 
-        let tx_hex = result
-            .get("hex")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ContractError::IoError(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "Invalid transaction response: missing hex field",
-                ))
-            })?;
+        let tx_hex = result.get("hex").and_then(|v| v.as_str()).ok_or_else(|| {
+            ContractError::IoError(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid transaction response: missing hex field",
+            ))
+        })?;
 
         let tx_bytes = Vec::<u8>::from_hex(tx_hex).map_err(|e| {
             ContractError::IoError(std::io::Error::new(
@@ -386,4 +385,3 @@ impl std::fmt::Debug for RpcClient {
             .finish()
     }
 }
-

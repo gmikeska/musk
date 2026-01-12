@@ -293,4 +293,3 @@ genesis_hash = "abc123"
         assert_eq!(Network::Liquid.default_rpc_port(), 7041);
     }
 }
-

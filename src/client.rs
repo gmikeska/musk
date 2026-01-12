@@ -55,4 +55,3 @@ pub trait NodeClient {
     /// Get a new address from the wallet
     fn get_new_address(&self) -> ClientResult<Address>;
 }
-

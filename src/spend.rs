@@ -5,7 +5,10 @@ use crate::contract::{CompiledContract, SatisfiedContract};
 use crate::error::SpendError;
 use elements::hashes::Hash;
 use elements::pset::PartiallySignedTransaction as Psbt;
-use elements::{confidential, AssetIssuance, LockTime, Script, Sequence, Transaction, TxIn, TxInWitness, TxOut, TxOutWitness};
+use elements::{
+    confidential, AssetIssuance, LockTime, Script, Sequence, Transaction, TxIn, TxInWitness, TxOut,
+    TxOutWitness,
+};
 use simplicityhl::simplicity::jet::elements::{ElementsEnv, ElementsUtxo};
 use simplicityhl::WitnessValues;
 
@@ -134,7 +137,10 @@ impl SpendBuilder {
     }
 
     /// Finalize the transaction with a pre-satisfied contract
-    pub fn finalize_with_satisfied(self, satisfied: SatisfiedContract) -> Result<Transaction, SpendError> {
+    pub fn finalize_with_satisfied(
+        self,
+        satisfied: SatisfiedContract,
+    ) -> Result<Transaction, SpendError> {
         let mut psbt = Psbt::from_tx(self.build_unsigned_tx());
 
         let (script, version) = self.contract.script_version();
@@ -177,4 +183,3 @@ pub fn simple_spend(
     builder.add_fee(fee, asset);
     builder.finalize(witness_values)
 }
-
