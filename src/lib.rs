@@ -1,7 +1,7 @@
 //! Musk - SDK for compiling, deploying, and spending Simplicity contracts
 //!
 //! This crate provides a high-level interface for working with Simplicity contracts
-//! on Elements/Liquid networks. It wraps the SimplicityHL compiler and provides
+//! on Elements/Liquid networks. It wraps the `SimplicityHL` compiler and provides
 //! utilities for address generation, transaction construction, and witness signing.
 //!
 //! # Example

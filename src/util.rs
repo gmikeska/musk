@@ -3,6 +3,12 @@
 use secp256k1::{Keypair, Message, Secp256k1, XOnlyPublicKey};
 
 /// Create a keypair from a u32 secret key (for testing)
+///
+/// # Panics
+///
+/// Panics if the secret key bytes produce an invalid secp256k1 secret key
+/// (this should never happen for reasonable u32 inputs).
+#[must_use]
 pub fn keypair_from_u32(secret_key: u32) -> Keypair {
     let mut secret_key_bytes = [0u8; 32];
     secret_key_bytes[28..].copy_from_slice(&secret_key.to_be_bytes());
@@ -11,6 +17,7 @@ pub fn keypair_from_u32(secret_key: u32) -> Keypair {
 }
 
 /// Sign a message using Schnorr signature
+#[must_use]
 pub fn sign_schnorr(secret_key: u32, message: [u8; 32]) -> [u8; 64] {
     let keypair = keypair_from_u32(secret_key);
     let message = Message::from_digest(message);
@@ -18,17 +25,28 @@ pub fn sign_schnorr(secret_key: u32, message: [u8; 32]) -> [u8; 64] {
 }
 
 /// Get the x-only public key for a secret key
+#[must_use]
 pub fn xonly_public_key(secret_key: u32) -> [u8; 32] {
     let keypair = keypair_from_u32(secret_key);
     keypair.x_only_public_key().0.serialize()
 }
 
 /// Parse an x-only public key from bytes
+///
+/// # Errors
+///
+/// Returns an error if the bytes do not represent a valid x-only public key.
 pub fn parse_xonly_public_key(bytes: &[u8]) -> Result<XOnlyPublicKey, secp256k1::Error> {
     XOnlyPublicKey::from_slice(bytes)
 }
 
 /// Default internal key for taproot (NUMS point)
+///
+/// # Panics
+///
+/// Panics if the hardcoded hex or public key bytes are invalid
+/// (this should never happen as they are compile-time constants).
+#[must_use]
 pub fn default_internal_key() -> XOnlyPublicKey {
     XOnlyPublicKey::from_slice(
         &hex::decode("50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0")

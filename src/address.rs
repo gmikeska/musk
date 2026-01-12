@@ -7,6 +7,10 @@ use secp256k1::Secp256k1;
 use simplicityhl::CompiledProgram;
 
 /// Create taproot spend info for a compiled contract
+///
+/// # Errors
+///
+/// Returns an error if the taproot tree cannot be built or finalized.
 pub fn create_taproot_info(compiled: &CompiledProgram) -> Result<TaprootSpendInfo, ContractError> {
     let internal_key = default_internal_key();
     let builder = TaprootBuilder::new();

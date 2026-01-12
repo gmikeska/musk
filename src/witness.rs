@@ -13,6 +13,7 @@ pub struct WitnessBuilder {
 
 impl WitnessBuilder {
     /// Create a new witness builder
+    #[must_use]
     pub fn new() -> Self {
         Self {
             values: HashMap::new(),
@@ -20,6 +21,7 @@ impl WitnessBuilder {
     }
 
     /// Add a witness value
+    #[must_use]
     pub fn with(mut self, name: &str, value: Value) -> Self {
         self.values
             .insert(WitnessName::from_str_unchecked(name), value);
@@ -27,6 +29,7 @@ impl WitnessBuilder {
     }
 
     /// Add a signature witness (signs the given message with the secret key)
+    #[must_use]
     pub fn with_signature(mut self, name: &str, secret_key: u32, message: [u8; 32]) -> Self {
         let signature = util::sign_schnorr(secret_key, message);
         self.values.insert(
@@ -37,6 +40,7 @@ impl WitnessBuilder {
     }
 
     /// Add a public key witness
+    #[must_use]
     pub fn with_pubkey(mut self, name: &str, secret_key: u32) -> Self {
         let pubkey = util::xonly_public_key(secret_key);
         self.values.insert(
@@ -47,6 +51,7 @@ impl WitnessBuilder {
     }
 
     /// Build the witness values
+    #[must_use]
     pub fn build(self) -> WitnessValues {
         WitnessValues::from(self.values)
     }

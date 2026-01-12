@@ -38,20 +38,44 @@ impl From<elements::TxOut> for Utxo {
 /// (regtest, testnet, mainnet) through a unified interface.
 pub trait NodeClient {
     /// Send funds to an address
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the RPC call fails or the response is invalid.
     fn send_to_address(&self, addr: &Address, amount: u64) -> ClientResult<Txid>;
 
     /// Get a transaction by its txid
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the transaction is not found or deserialization fails.
     fn get_transaction(&self, txid: &Txid) -> ClientResult<Transaction>;
 
     /// Broadcast a transaction to the network
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the broadcast fails or the transaction is rejected.
     fn broadcast(&self, tx: &Transaction) -> ClientResult<Txid>;
 
     /// Generate blocks (regtest only)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if block generation fails (only works on regtest).
     fn generate_blocks(&self, count: u32) -> ClientResult<Vec<BlockHash>>;
 
     /// Get UTXOs for an address
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the RPC call fails or the response is invalid.
     fn get_utxos(&self, address: &Address) -> ClientResult<Vec<Utxo>>;
 
     /// Get a new address from the wallet
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the RPC call fails or the address is invalid.
     fn get_new_address(&self) -> ClientResult<Address>;
 }

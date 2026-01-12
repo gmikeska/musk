@@ -24,6 +24,7 @@ pub struct SpendBuilder {
 
 impl SpendBuilder {
     /// Create a new spend builder for the given contract and UTXO
+    #[must_use]
     pub fn new(contract: CompiledContract, utxo: Utxo) -> Self {
         Self {
             contract,
@@ -36,7 +37,8 @@ impl SpendBuilder {
     }
 
     /// Set the genesis block hash (required for sighash computation)
-    pub fn genesis_hash(mut self, hash: elements::BlockHash) -> Self {
+    #[must_use]
+    pub const fn genesis_hash(mut self, hash: elements::BlockHash) -> Self {
         self.genesis_hash = hash;
         self
     }
@@ -71,20 +73,26 @@ impl SpendBuilder {
     }
 
     /// Set the lock time
-    pub fn lock_time(mut self, lock_time: LockTime) -> Self {
+    #[must_use]
+    pub const fn lock_time(mut self, lock_time: LockTime) -> Self {
         self.lock_time = lock_time;
         self
     }
 
     /// Set the sequence number
-    pub fn sequence(mut self, sequence: Sequence) -> Self {
+    #[must_use]
+    pub const fn sequence(mut self, sequence: Sequence) -> Self {
         self.sequence = sequence;
         self
     }
 
-    /// Compute the sighash_all for this transaction
+    /// Compute the `sighash_all` for this transaction
     ///
     /// This is used to generate witness values that include signatures
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the control block cannot be found.
     pub fn sighash_all(&self) -> Result<[u8; 32], SpendError> {
         let tx = self.build_unsigned_tx();
         let utxo = ElementsUtxo {
@@ -131,15 +139,23 @@ impl SpendBuilder {
     }
 
     /// Finalize the transaction with witness values
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the contract cannot be satisfied or the transaction cannot be finalized.
     pub fn finalize(self, witness_values: WitnessValues) -> Result<Transaction, SpendError> {
         let satisfied = self.contract.satisfy(witness_values)?;
-        self.finalize_with_satisfied(satisfied)
+        self.finalize_with_satisfied(&satisfied)
     }
 
     /// Finalize the transaction with a pre-satisfied contract
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the control block cannot be found or transaction extraction fails.
     pub fn finalize_with_satisfied(
         self,
-        satisfied: SatisfiedContract,
+        satisfied: &SatisfiedContract,
     ) -> Result<Transaction, SpendError> {
         let mut psbt = Psbt::from_tx(self.build_unsigned_tx());
 
@@ -164,6 +180,10 @@ impl SpendBuilder {
 }
 
 /// Helper to create a simple spending transaction
+///
+/// # Errors
+///
+/// Returns an error if the asset is not explicit or the transaction cannot be built.
 pub fn simple_spend(
     contract: CompiledContract,
     utxo: Utxo,
@@ -173,9 +193,8 @@ pub fn simple_spend(
     genesis_hash: elements::BlockHash,
     witness_values: WitnessValues,
 ) -> Result<Transaction, SpendError> {
-    let asset = match utxo.asset {
-        confidential::Asset::Explicit(id) => id,
-        _ => return Err(SpendError::InvalidUtxo("Non-explicit asset".into())),
+    let confidential::Asset::Explicit(asset) = utxo.asset else {
+        return Err(SpendError::InvalidUtxo("Non-explicit asset".into()));
     };
 
     let mut builder = SpendBuilder::new(contract, utxo).genesis_hash(genesis_hash);

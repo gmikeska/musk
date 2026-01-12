@@ -15,6 +15,10 @@ pub struct Contract {
 
 impl Contract {
     /// Create a contract from source code
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the source code cannot be parsed.
     pub fn from_source(source: &str) -> Result<Self, ContractError> {
         let source = Arc::from(source);
         let template =
@@ -24,17 +28,26 @@ impl Contract {
     }
 
     /// Load a contract from a file
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read or parsed.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ContractError> {
         let source = std::fs::read_to_string(path)?;
         Self::from_source(&source)
     }
 
     /// Get the parameters required by this contract template
+    #[must_use]
     pub fn parameters(&self) -> &Parameters {
         self.template.parameters()
     }
 
     /// Instantiate the contract with the given arguments
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if instantiation fails or the taproot tree cannot be built.
     pub fn instantiate(&self, arguments: Arguments) -> Result<CompiledContract, ContractError> {
         let compiled = self
             .template
@@ -50,6 +63,7 @@ impl Contract {
     }
 
     /// Get the source code
+    #[must_use]
     pub fn source(&self) -> &str {
         &self.source
     }
@@ -64,11 +78,13 @@ pub struct CompiledContract {
 
 impl CompiledContract {
     /// Get the commitment Merkle root (CMR) of this contract
+    #[must_use]
     pub fn cmr(&self) -> simplicityhl::simplicity::Cmr {
         self.inner.commit().cmr()
     }
 
     /// Generate a taproot address for this contract
+    #[must_use]
     pub fn address(&self, params: &'static elements::AddressParams) -> elements::Address {
         let blinder = None;
         elements::Address::p2tr(
@@ -81,17 +97,23 @@ impl CompiledContract {
     }
 
     /// Get the taproot spend info
-    pub fn taproot_info(&self) -> &TaprootSpendInfo {
+    #[must_use]
+    pub const fn taproot_info(&self) -> &TaprootSpendInfo {
         &self.taproot_info
     }
 
     /// Get the script and leaf version for taproot spending
+    #[must_use]
     pub fn script_version(&self) -> (elements::Script, elements::taproot::LeafVersion) {
         let script = elements::script::Script::from(self.cmr().as_ref().to_vec());
         (script, simplicityhl::simplicity::leaf_version())
     }
 
     /// Satisfy the contract with witness values, producing a satisfied program
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the witness values are invalid or incomplete.
     pub fn satisfy(
         &self,
         witness_values: WitnessValues,
@@ -108,7 +130,8 @@ impl CompiledContract {
     }
 
     /// Get the underlying compiled program
-    pub fn inner(&self) -> &CompiledProgram {
+    #[must_use]
+    pub const fn inner(&self) -> &CompiledProgram {
         &self.inner
     }
 }
@@ -121,17 +144,20 @@ pub struct SatisfiedContract {
 
 impl SatisfiedContract {
     /// Get the taproot spend info
-    pub fn taproot_info(&self) -> &TaprootSpendInfo {
+    #[must_use]
+    pub const fn taproot_info(&self) -> &TaprootSpendInfo {
         &self.taproot_info
     }
 
     /// Encode the program and witness for inclusion in a transaction
+    #[must_use]
     pub fn encode(&self) -> (Vec<u8>, Vec<u8>) {
         self.inner.redeem().to_vec_with_witness()
     }
 
     /// Get the underlying satisfied program
-    pub fn inner(&self) -> &simplicityhl::SatisfiedProgram {
+    #[must_use]
+    pub const fn inner(&self) -> &simplicityhl::SatisfiedProgram {
         &self.inner
     }
 }

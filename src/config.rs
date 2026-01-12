@@ -35,25 +35,28 @@ pub enum Network {
 
 impl Network {
     /// Get the default RPC port for this network
-    pub fn default_rpc_port(&self) -> u16 {
+    #[must_use]
+    pub const fn default_rpc_port(self) -> u16 {
         match self {
-            Network::Regtest => 18884,
-            Network::Testnet => 18892,
-            Network::Liquid => 7041,
+            Self::Regtest => 18884,
+            Self::Testnet => 18892,
+            Self::Liquid => 7041,
         }
     }
 
     /// Get the address params for this network
-    pub fn address_params(&self) -> &'static elements::AddressParams {
+    #[must_use]
+    pub const fn address_params(self) -> &'static elements::AddressParams {
         match self {
-            Network::Regtest => &elements::AddressParams::ELEMENTS,
-            Network::Testnet => &elements::AddressParams::LIQUID_TESTNET,
-            Network::Liquid => &elements::AddressParams::LIQUID,
+            Self::Regtest => &elements::AddressParams::ELEMENTS,
+            Self::Testnet => &elements::AddressParams::LIQUID_TESTNET,
+            Self::Liquid => &elements::AddressParams::LIQUID,
         }
     }
 
     /// Get the default RPC URL for this network
-    pub fn default_rpc_url(&self) -> String {
+    #[must_use]
+    pub fn default_rpc_url(self) -> String {
         format!("http://127.0.0.1:{}", self.default_rpc_port())
     }
 }
@@ -61,9 +64,9 @@ impl Network {
 impl std::fmt::Display for Network {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Network::Regtest => write!(f, "regtest"),
-            Network::Testnet => write!(f, "testnet"),
-            Network::Liquid => write!(f, "liquidv1"),
+            Self::Regtest => write!(f, "regtest"),
+            Self::Testnet => write!(f, "testnet"),
+            Self::Liquid => write!(f, "liquidv1"),
         }
     }
 }
@@ -71,7 +74,7 @@ impl std::fmt::Display for Network {
 /// RPC connection configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RpcConfig {
-    /// RPC URL (e.g., "http://127.0.0.1:18884")
+    /// RPC URL (e.g., `http://127.0.0.1:18884`)
     pub url: String,
     /// RPC username
     pub user: String,
@@ -91,6 +94,7 @@ impl Default for RpcConfig {
 
 impl RpcConfig {
     /// Create RPC config for a specific network with default settings
+    #[must_use]
     pub fn for_network(network: Network) -> Self {
         Self {
             url: network.default_rpc_url(),
@@ -135,22 +139,38 @@ impl Default for NodeConfig {
 
 impl NodeConfig {
     /// Load configuration from a TOML file
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read or parsed.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ConfigError> {
         let contents = std::fs::read_to_string(path)?;
         Self::from_toml(&contents)
     }
 
     /// Parse configuration from TOML string
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the TOML is invalid.
     pub fn from_toml(toml_str: &str) -> Result<Self, ConfigError> {
         toml::from_str(toml_str).map_err(ConfigError::Parse)
     }
 
     /// Serialize configuration to TOML string
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization fails.
     pub fn to_toml(&self) -> Result<String, ConfigError> {
         toml::to_string_pretty(self).map_err(ConfigError::Serialize)
     }
 
     /// Save configuration to a file
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be written.
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), ConfigError> {
         let toml_str = self.to_toml()?;
         std::fs::write(path, toml_str)?;
@@ -158,7 +178,8 @@ impl NodeConfig {
     }
 
     /// Get the network type
-    pub fn network(&self) -> Network {
+    #[must_use]
+    pub const fn network(&self) -> Network {
         self.network_wrapper.network
     }
 
@@ -167,7 +188,11 @@ impl NodeConfig {
         self.network_wrapper.network = network;
     }
 
-    /// Get the genesis hash as BlockHash
+    /// Get the genesis hash as `BlockHash`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the genesis hash is missing or invalid.
     pub fn genesis_hash(&self) -> Result<elements::BlockHash, ConfigError> {
         use std::str::FromStr;
 
@@ -182,11 +207,13 @@ impl NodeConfig {
     }
 
     /// Get address params for the configured network
-    pub fn address_params(&self) -> &'static elements::AddressParams {
+    #[must_use]
+    pub const fn address_params(&self) -> &'static elements::AddressParams {
         self.network().address_params()
     }
 
     /// Create a default config for regtest
+    #[must_use]
     pub fn regtest() -> Self {
         Self {
             network_wrapper: NetworkWrapper {
@@ -198,6 +225,7 @@ impl NodeConfig {
     }
 
     /// Create a default config for testnet
+    #[must_use]
     pub fn testnet() -> Self {
         Self {
             network_wrapper: NetworkWrapper {
@@ -209,6 +237,7 @@ impl NodeConfig {
     }
 
     /// Create a default config for Liquid mainnet
+    #[must_use]
     pub fn liquid() -> Self {
         Self {
             network_wrapper: NetworkWrapper {
@@ -220,6 +249,7 @@ impl NodeConfig {
     }
 
     /// Create config with custom RPC settings
+    #[must_use]
     pub fn with_rpc(mut self, url: &str, user: &str, password: &str) -> Self {
         self.rpc = RpcConfig {
             url: url.to_string(),
@@ -230,6 +260,7 @@ impl NodeConfig {
     }
 
     /// Set the genesis hash
+    #[must_use]
     pub fn with_genesis_hash(mut self, hash: &str) -> Self {
         self.chain.genesis_hash = Some(hash.to_string());
         self
