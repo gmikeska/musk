@@ -1,0 +1,23 @@
+[package]
+name = "musk"
+version = "0.1.0"
+authors = ["greg"]
+edition = "2021"
+rust-version = "1.79.0"
+license = "MIT OR Apache-2.0"
+description = "SDK for compiling, deploying, and spending Simplicity contracts on Elements/Liquid"
+
+[features]
+default = ["serde"]
+serde = ["dep:serde", "dep:serde_json"]
+
+[dependencies]
+simplicityhl = { path = "../SimplicityHL" }
+elements = "0.25"
+secp256k1 = { version = "0.29", features = ["rand-std"] }
+thiserror = "2"
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+
+[dev-dependencies]
+
