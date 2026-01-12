@@ -3,11 +3,11 @@
 use crate::client::Utxo;
 use crate::contract::{CompiledContract, SatisfiedContract};
 use crate::error::SpendError;
+use elements::hashes::Hash;
 use elements::pset::PartiallySignedTransaction as Psbt;
 use elements::{confidential, AssetIssuance, LockTime, Script, Sequence, Transaction, TxIn, TxInWitness, TxOut, TxOutWitness};
-use simplicity::jet::elements::{ElementsEnv, ElementsUtxo};
+use simplicityhl::simplicity::jet::elements::{ElementsEnv, ElementsUtxo};
 use simplicityhl::WitnessValues;
-use std::sync::Arc;
 
 /// Builder for constructing spending transactions
 pub struct SpendBuilder {
@@ -28,7 +28,7 @@ impl SpendBuilder {
             outputs: Vec::new(),
             lock_time: LockTime::ZERO,
             sequence: Sequence::MAX,
-            genesis_hash: elements::BlockHash::all_zeros(), // Default, should be set
+            genesis_hash: elements::BlockHash::from_byte_array([0u8; 32]), // Default, should be set
         }
     }
 
@@ -86,11 +86,8 @@ impl SpendBuilder {
         let tx = self.build_unsigned_tx();
         let utxo = ElementsUtxo {
             script_pubkey: self.utxo.script_pubkey.clone(),
-            value: self.utxo.amount,
-            asset: match self.utxo.asset {
-                confidential::Asset::Explicit(id) => id,
-                _ => return Err(SpendError::InvalidUtxo("Non-explicit asset".into())),
-            },
+            value: confidential::Value::Explicit(self.utxo.amount),
+            asset: self.utxo.asset,
         };
 
         let (script, _version) = self.contract.script_version();
@@ -110,7 +107,7 @@ impl SpendBuilder {
             self.genesis_hash,
         );
 
-        Ok(env.c_tx_env().sighash_all().to_byte_array())
+        Ok(*env.c_tx_env().sighash_all().as_byte_array())
     }
 
     /// Build the unsigned transaction

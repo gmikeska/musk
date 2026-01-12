@@ -1,6 +1,7 @@
 //! Abstract interface for interacting with Elements nodes
 
 use crate::error::ContractError;
+use elements::hashes::Hash;
 use elements::{Address, BlockHash, Transaction, Txid};
 
 /// Result type for node client operations
@@ -19,8 +20,8 @@ pub struct Utxo {
 impl From<elements::TxOut> for Utxo {
     fn from(txout: elements::TxOut) -> Self {
         Self {
-            txid: Txid::all_zeros(), // Will be set by caller
-            vout: 0,                 // Will be set by caller
+            txid: Txid::from_byte_array([0u8; 32]), // Will be set by caller
+            vout: 0,                                // Will be set by caller
             amount: match txout.value {
                 elements::confidential::Value::Explicit(amt) => amt,
                 _ => 0,

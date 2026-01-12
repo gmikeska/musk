@@ -1,7 +1,9 @@
 //! Witness utilities and signing helpers
 
 use crate::util;
-use simplicityhl::{Value, WitnessName, WitnessValues};
+use simplicityhl::str::WitnessName;
+use simplicityhl::value::ValueConstructible;
+use simplicityhl::{Value, WitnessValues};
 use std::collections::HashMap;
 
 /// Builder for constructing witness values

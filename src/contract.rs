@@ -64,12 +64,12 @@ pub struct CompiledContract {
 
 impl CompiledContract {
     /// Get the commitment Merkle root (CMR) of this contract
-    pub fn cmr(&self) -> simplicity::Cmr {
+    pub fn cmr(&self) -> simplicityhl::simplicity::Cmr {
         self.inner.commit().cmr()
     }
 
     /// Generate a taproot address for this contract
-    pub fn address(&self, params: &elements::AddressParams) -> elements::Address {
+    pub fn address(&self, params: &'static elements::AddressParams) -> elements::Address {
         let blinder = None;
         elements::Address::p2tr(
             &secp256k1::Secp256k1::new(),
@@ -124,7 +124,7 @@ impl SatisfiedContract {
 
     /// Encode the program and witness for inclusion in a transaction
     pub fn encode(&self) -> (Vec<u8>, Vec<u8>) {
-        self.inner.redeem().encode_to_vec()
+        self.inner.redeem().to_vec_with_witness()
     }
 
     /// Get the underlying satisfied program
