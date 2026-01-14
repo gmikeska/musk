@@ -408,6 +408,7 @@ version = "0.1.0"
 dependencies = [
  "elements",
  "jsonrpc",
+ "rand",
  "secp256k1",
  "serde",
  "serde_json",
