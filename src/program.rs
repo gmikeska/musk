@@ -202,10 +202,7 @@ impl InstantiatedProgram {
     /// # Errors
     ///
     /// Returns an error if the witness values are invalid or incomplete.
-    pub fn satisfy(
-        &self,
-        witness_values: WitnessValues,
-    ) -> Result<SatisfiedProgram, ProgramError> {
+    pub fn satisfy(&self, witness_values: WitnessValues) -> Result<SatisfiedProgram, ProgramError> {
         let satisfied = self
             .inner
             .satisfy(witness_values)
@@ -346,4 +343,3 @@ mod tests {
         assert_eq!(program.source(), source);
     }
 }
-

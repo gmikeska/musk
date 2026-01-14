@@ -171,9 +171,8 @@ impl NodeClient for MockClient {
 
         let secp = Secp256k1::new();
         let secret_bytes: [u8; 32] = rand::random();
-        let secret_key = secp256k1::SecretKey::from_slice(&secret_bytes).map_err(|e| {
-            ProgramError::IoError(std::io::Error::other(format!("Key error: {e}")))
-        })?;
+        let secret_key = secp256k1::SecretKey::from_slice(&secret_bytes)
+            .map_err(|e| ProgramError::IoError(std::io::Error::other(format!("Key error: {e}"))))?;
         let secp_pubkey = secp256k1::PublicKey::from_secret_key(&secp, &secret_key);
         let bitcoin_pubkey = PublicKey::new(secp_pubkey);
 

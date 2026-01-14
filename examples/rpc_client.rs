@@ -9,7 +9,7 @@
 //!   - Elements node running (regtest mode)
 //!   - RPC credentials configured
 
-use musk::{Arguments, Program, NodeConfig, RpcClient, SpendBuilder};
+use musk::{Arguments, NodeConfig, Program, RpcClient, SpendBuilder};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Musk RpcClient Example\n");

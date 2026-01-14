@@ -99,11 +99,7 @@ impl RpcClient {
     /// # Errors
     ///
     /// Returns an error if the RPC URL is invalid.
-    pub fn for_network(
-        network: Network,
-        user: &str,
-        password: &str,
-    ) -> Result<Self, ProgramError> {
+    pub fn for_network(network: Network, user: &str, password: &str) -> Result<Self, ProgramError> {
         let config = match network {
             Network::Regtest => NodeConfig::regtest(),
             Network::Testnet => NodeConfig::testnet(),
@@ -238,9 +234,8 @@ impl NodeClient for RpcClient {
 
         let txid_str: String = self.call("sendtoaddress", &[addr_str.into(), amount_btc.into()])?;
 
-        Txid::from_str(&txid_str).map_err(|e| {
-            ProgramError::IoError(std::io::Error::other(format!("Invalid txid: {e}")))
-        })
+        Txid::from_str(&txid_str)
+            .map_err(|e| ProgramError::IoError(std::io::Error::other(format!("Invalid txid: {e}"))))
     }
 
     fn get_transaction(&self, txid: &Txid) -> ClientResult<Transaction> {
@@ -268,9 +263,8 @@ impl NodeClient for RpcClient {
 
         let txid_str: String = self.call("sendrawtransaction", &[serialize_hex(tx).into()])?;
 
-        Txid::from_str(&txid_str).map_err(|e| {
-            ProgramError::IoError(std::io::Error::other(format!("Invalid txid: {e}")))
-        })
+        Txid::from_str(&txid_str)
+            .map_err(|e| ProgramError::IoError(std::io::Error::other(format!("Invalid txid: {e}"))))
     }
 
     fn generate_blocks(&self, count: u32) -> ClientResult<Vec<BlockHash>> {
@@ -283,9 +277,7 @@ impl NodeClient for RpcClient {
             .iter()
             .map(|s| {
                 BlockHash::from_str(s).map_err(|e| {
-                    ProgramError::IoError(std::io::Error::other(format!(
-                        "Invalid block hash: {e}"
-                    )))
+                    ProgramError::IoError(std::io::Error::other(format!("Invalid block hash: {e}")))
                 })
             })
             .collect()

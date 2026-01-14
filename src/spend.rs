@@ -1,8 +1,8 @@
 //! Transaction construction and spending utilities
 
 use crate::client::Utxo;
-use crate::program::{InstantiatedProgram, SatisfiedProgram};
 use crate::error::SpendError;
+use crate::program::{InstantiatedProgram, SatisfiedProgram};
 use elements::hashes::Hash;
 use elements::pset::PartiallySignedTransaction as Psbt;
 use elements::{
