@@ -1,12 +1,12 @@
 # Musk
 
-SDK for compiling, deploying, and spending Simplicity contracts on Elements/Liquid networks.
+SDK for compiling, deploying, and spending Simplicity programs on Elements/Liquid networks.
 
 ## Overview
 
-Musk provides a high-level Rust interface for working with Simplicity contracts. It wraps the SimplicityHL compiler and provides utilities for:
+Musk provides a high-level Rust interface for working with Simplicity programs. It wraps the SimplicityHL compiler and provides utilities for:
 
-- Contract compilation and instantiation
+- Program compilation and instantiation
 - Taproot address generation
 - Transaction construction and signing
 - Witness value management
@@ -60,24 +60,24 @@ password = "password"
 genesis_hash = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
 ```
 
-### Basic Contract Example
+### Basic Program Example
 
 ```rust
-use musk::{Contract, Arguments, RpcClient, NodeConfig};
+use musk::{Program, Arguments, RpcClient, NodeConfig};
 use musk::client::NodeClient;
 
 // Connect to node
 let client = RpcClient::new(NodeConfig::regtest())?;
 
-// Load and compile a contract
-let contract = Contract::from_file("my_contract.simf")?;
-let compiled = contract.instantiate(Arguments::default())?;
+// Load and compile a program
+let program = Program::from_file("my_program.simf")?;
+let compiled = program.instantiate(Arguments::default())?;
 
 // Generate an address (uses network-appropriate params)
 let address = compiled.address(client.address_params());
-println!("Contract address: {}", address);
+println!("Program address: {}", address);
 
-// Fund the contract
+// Fund the program
 let txid = client.send_to_address(&address, 100_000_000)?; // 1 BTC
 client.generate_blocks(1)?; // Confirm (regtest only)
 ```
@@ -109,11 +109,11 @@ let txid = client.broadcast(&tx)?;
 ### With Arguments and Witnesses
 
 ```rust
-use musk::{Contract, Arguments, Value, WitnessName};
+use musk::{Program, Arguments, Value, WitnessName};
 use std::collections::HashMap;
 
-// Load contract with parameters
-let contract = Contract::from_file("p2pk.simf")?;
+// Load program with parameters
+let program = Program::from_file("p2pk.simf")?;
 
 // Provide arguments
 let mut args = HashMap::new();
@@ -121,7 +121,7 @@ args.insert(
     WitnessName::from_str_unchecked("ALICE_PUBLIC_KEY"),
     Value::u256(pubkey),
 );
-let compiled = contract.instantiate(Arguments::from(args))?;
+let compiled = program.instantiate(Arguments::from(args))?;
 
 // Create witness with signature
 let mut witness = HashMap::new();
@@ -145,10 +145,10 @@ Musk is designed to be network-agnostic through the `NodeClient` trait:
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                          Musk                               │
-│  ┌─────────────┐  ┌──────────────┐  ┌──────────────────┐   │
-│  │  Contract   │→ │CompiledContract│→ │   SpendBuilder   │   │
-│  │  (.simf)    │  │  (Address)   │  │  (Transaction)   │   │
-│  └─────────────┘  └──────────────┘  └──────────────────┘   │
+│  ┌─────────────┐  ┌────────────────────┐  ┌──────────────┐  │
+│  │   Program   │→ │InstantiatedProgram │→ │ SpendBuilder │  │
+│  │   (.simf)   │  │     (Address)      │  │ (Transaction)│  │
+│  └─────────────┘  └────────────────────┘  └──────────────┘  │
 │                                              │              │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │               NodeClient trait                       │   │
@@ -190,7 +190,7 @@ musk = { path = "../musk", default-features = false, features = ["serde"] }
 
 See the `examples/` directory:
 
-- `basic_usage.rs` - Simple contract workflow
+- `basic_usage.rs` - Simple program workflow
 - `rpc_client.rs` - Connecting to nodes with RpcClient
 
 Run examples:

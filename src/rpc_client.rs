@@ -8,7 +8,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use musk::{NodeConfig, RpcClient, Contract, SpendBuilder};
+//! use musk::{NodeConfig, RpcClient, Program, SpendBuilder};
 //!
 //! // Load config from file
 //! let config = NodeConfig::from_file("musk.toml")?;
@@ -22,13 +22,13 @@
 //! )?;
 //!
 //! // Use the client
-//! let address = compiled_contract.address(client.address_params());
+//! let address = compiled_program.address(client.address_params());
 //! let txid = client.send_to_address(&address, 100_000_000)?;
 //! ```
 
 use crate::client::{ClientResult, NodeClient, Utxo};
 use crate::config::{Network, NodeConfig};
-use crate::error::ContractError;
+use crate::error::ProgramError;
 use elements::{encode::deserialize, hex::FromHex, Address, BlockHash, Transaction, Txid};
 use std::str::FromStr;
 
@@ -54,11 +54,11 @@ impl RpcClient {
     /// # Errors
     ///
     /// Returns an error if the RPC URL is invalid.
-    pub fn new(config: NodeConfig) -> Result<Self, ContractError> {
+    pub fn new(config: NodeConfig) -> Result<Self, ProgramError> {
         let transport = jsonrpc::simple_http::SimpleHttpTransport::builder()
             .url(&config.rpc.url)
             .map_err(|e| {
-                ContractError::IoError(std::io::Error::other(format!("Invalid RPC URL: {e}")))
+                ProgramError::IoError(std::io::Error::other(format!("Invalid RPC URL: {e}")))
             })?
             .auth(&config.rpc.user, Some(&config.rpc.password))
             .build();
@@ -77,9 +77,9 @@ impl RpcClient {
     /// # Errors
     ///
     /// Returns an error if the config file cannot be read or parsed.
-    pub fn from_config_file(path: &str) -> Result<Self, ContractError> {
+    pub fn from_config_file(path: &str) -> Result<Self, ProgramError> {
         let config = NodeConfig::from_file(path).map_err(|e| {
-            ContractError::IoError(std::io::Error::other(format!("Config error: {e}")))
+            ProgramError::IoError(std::io::Error::other(format!("Config error: {e}")))
         })?;
         Self::new(config)
     }
@@ -89,7 +89,7 @@ impl RpcClient {
     /// # Errors
     ///
     /// Returns an error if the RPC URL is invalid.
-    pub fn from_url(url: &str, user: &str, password: &str) -> Result<Self, ContractError> {
+    pub fn from_url(url: &str, user: &str, password: &str) -> Result<Self, ProgramError> {
         let config = NodeConfig::regtest().with_rpc(url, user, password);
         Self::new(config)
     }
@@ -103,7 +103,7 @@ impl RpcClient {
         network: Network,
         user: &str,
         password: &str,
-    ) -> Result<Self, ContractError> {
+    ) -> Result<Self, ProgramError> {
         let config = match network {
             Network::Regtest => NodeConfig::regtest(),
             Network::Testnet => NodeConfig::testnet(),
@@ -131,7 +131,7 @@ impl RpcClient {
     /// # Errors
     ///
     /// Returns an error if the genesis hash cannot be fetched from the node.
-    pub fn genesis_hash(&mut self) -> Result<BlockHash, ContractError> {
+    pub fn genesis_hash(&mut self) -> Result<BlockHash, ProgramError> {
         // Return cached value if available
         if let Some(hash) = self.genesis_hash {
             return Ok(hash);
@@ -146,7 +146,7 @@ impl RpcClient {
         // Fetch from node
         let hash_str: String = self.call("getblockhash", &[serde_json::json!(0)])?;
         let hash = BlockHash::from_str(&hash_str).map_err(|e| {
-            ContractError::IoError(std::io::Error::other(format!(
+            ProgramError::IoError(std::io::Error::other(format!(
                 "Invalid genesis hash from node: {e}"
             )))
         })?;
@@ -169,26 +169,26 @@ impl RpcClient {
     ) -> ClientResult<T> {
         // Convert params to RawValue
         let params_json = serde_json::to_string(params).map_err(|e| {
-            ContractError::IoError(std::io::Error::other(format!(
+            ProgramError::IoError(std::io::Error::other(format!(
                 "Failed to serialize params: {e}"
             )))
         })?;
 
         let raw_params: Box<serde_json::value::RawValue> =
             serde_json::value::RawValue::from_string(params_json).map_err(|e| {
-                ContractError::IoError(std::io::Error::other(format!(
+                ProgramError::IoError(std::io::Error::other(format!(
                     "Failed to create raw value: {e}"
                 )))
             })?;
 
         let request = self.client.build_request(method, Some(&raw_params));
         let response = self.client.send_request(request).map_err(|e| {
-            ContractError::IoError(std::io::Error::other(format!("RPC request failed: {e}")))
+            ProgramError::IoError(std::io::Error::other(format!("RPC request failed: {e}")))
         })?;
 
         response
             .result()
-            .map_err(|e| ContractError::IoError(std::io::Error::other(format!("RPC error: {e}"))))
+            .map_err(|e| ProgramError::IoError(std::io::Error::other(format!("RPC error: {e}"))))
     }
 
     /// Test the connection to the node
@@ -196,7 +196,7 @@ impl RpcClient {
     /// # Errors
     ///
     /// Returns an error if the connection test fails.
-    pub fn test_connection(&self) -> Result<(), ContractError> {
+    pub fn test_connection(&self) -> Result<(), ProgramError> {
         let _: serde_json::Value = self.call("getblockchaininfo", &[])?;
         Ok(())
     }
@@ -239,7 +239,7 @@ impl NodeClient for RpcClient {
         let txid_str: String = self.call("sendtoaddress", &[addr_str.into(), amount_btc.into()])?;
 
         Txid::from_str(&txid_str).map_err(|e| {
-            ContractError::IoError(std::io::Error::other(format!("Invalid txid: {e}")))
+            ProgramError::IoError(std::io::Error::other(format!("Invalid txid: {e}")))
         })
     }
 
@@ -247,17 +247,17 @@ impl NodeClient for RpcClient {
         let result: serde_json::Value = self.call("gettransaction", &[txid.to_string().into()])?;
 
         let tx_hex = result.get("hex").and_then(|v| v.as_str()).ok_or_else(|| {
-            ContractError::IoError(std::io::Error::other(
+            ProgramError::IoError(std::io::Error::other(
                 "Invalid transaction response: missing hex field",
             ))
         })?;
 
         let tx_bytes = Vec::<u8>::from_hex(tx_hex).map_err(|e| {
-            ContractError::IoError(std::io::Error::other(format!("Invalid hex: {e}")))
+            ProgramError::IoError(std::io::Error::other(format!("Invalid hex: {e}")))
         })?;
 
         deserialize(&tx_bytes).map_err(|e| {
-            ContractError::IoError(std::io::Error::other(format!(
+            ProgramError::IoError(std::io::Error::other(format!(
                 "Failed to deserialize transaction: {e}"
             )))
         })
@@ -269,7 +269,7 @@ impl NodeClient for RpcClient {
         let txid_str: String = self.call("sendrawtransaction", &[serialize_hex(tx).into()])?;
 
         Txid::from_str(&txid_str).map_err(|e| {
-            ContractError::IoError(std::io::Error::other(format!("Invalid txid: {e}")))
+            ProgramError::IoError(std::io::Error::other(format!("Invalid txid: {e}")))
         })
     }
 
@@ -283,7 +283,7 @@ impl NodeClient for RpcClient {
             .iter()
             .map(|s| {
                 BlockHash::from_str(s).map_err(|e| {
-                    ContractError::IoError(std::io::Error::other(format!(
+                    ProgramError::IoError(std::io::Error::other(format!(
                         "Invalid block hash: {e}"
                     )))
                 })
@@ -305,11 +305,11 @@ impl NodeClient for RpcClient {
         let mut utxos = Vec::new();
         for item in result {
             let txid_str = item.get("txid").and_then(|v| v.as_str()).ok_or_else(|| {
-                ContractError::IoError(std::io::Error::other("Missing txid in listunspent"))
+                ProgramError::IoError(std::io::Error::other("Missing txid in listunspent"))
             })?;
 
             let txid = Txid::from_str(txid_str).map_err(|e| {
-                ContractError::IoError(std::io::Error::other(format!("Invalid txid: {e}")))
+                ProgramError::IoError(std::io::Error::other(format!("Invalid txid: {e}")))
             })?;
 
             #[allow(clippy::cast_possible_truncation)]
@@ -317,14 +317,14 @@ impl NodeClient for RpcClient {
                 .get("vout")
                 .and_then(serde_json::Value::as_u64)
                 .ok_or_else(|| {
-                    ContractError::IoError(std::io::Error::other("Missing vout in listunspent"))
+                    ProgramError::IoError(std::io::Error::other("Missing vout in listunspent"))
                 })? as u32;
 
             let amount_btc = item
                 .get("amount")
                 .and_then(serde_json::Value::as_f64)
                 .ok_or_else(|| {
-                    ContractError::IoError(std::io::Error::other("Missing amount in listunspent"))
+                    ProgramError::IoError(std::io::Error::other("Missing amount in listunspent"))
                 })?;
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let amount = (amount_btc * 100_000_000.0) as u64;
@@ -333,13 +333,13 @@ impl NodeClient for RpcClient {
                 .get("scriptPubKey")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| {
-                    ContractError::IoError(std::io::Error::other(
+                    ProgramError::IoError(std::io::Error::other(
                         "Missing scriptPubKey in listunspent",
                     ))
                 })?;
 
             let script_bytes = Vec::<u8>::from_hex(script_hex).map_err(|e| {
-                ContractError::IoError(std::io::Error::other(format!("Invalid script hex: {e}")))
+                ProgramError::IoError(std::io::Error::other(format!("Invalid script hex: {e}")))
             })?;
 
             let script_pubkey = elements::Script::from(script_bytes);
@@ -347,7 +347,7 @@ impl NodeClient for RpcClient {
             // Get asset - Elements returns asset ID as hex string
             let asset = if let Some(asset_str) = item.get("asset").and_then(|v| v.as_str()) {
                 let asset_id = elements::AssetId::from_str(asset_str).map_err(|e| {
-                    ContractError::IoError(std::io::Error::other(format!("Invalid asset id: {e}")))
+                    ProgramError::IoError(std::io::Error::other(format!("Invalid asset id: {e}")))
                 })?;
                 elements::confidential::Asset::Explicit(asset_id)
             } else {
@@ -371,7 +371,7 @@ impl NodeClient for RpcClient {
         let addr_str: String = self.call("getnewaddress", &[])?;
 
         Address::from_str(&addr_str).map_err(|e| {
-            ContractError::IoError(std::io::Error::other(format!("Invalid address: {e}")))
+            ProgramError::IoError(std::io::Error::other(format!("Invalid address: {e}")))
         })
     }
 }

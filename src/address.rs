@@ -1,17 +1,17 @@
 //! Address generation and taproot utilities
 
-use crate::error::ContractError;
+use crate::error::ProgramError;
 use crate::util::default_internal_key;
 use elements::taproot::{TaprootBuilder, TaprootSpendInfo};
 use secp256k1::Secp256k1;
 use simplicityhl::CompiledProgram;
 
-/// Create taproot spend info for a compiled contract
+/// Create taproot spend info for a compiled program
 ///
 /// # Errors
 ///
 /// Returns an error if the taproot tree cannot be built or finalized.
-pub fn create_taproot_info(compiled: &CompiledProgram) -> Result<TaprootSpendInfo, ContractError> {
+pub fn create_taproot_info(compiled: &CompiledProgram) -> Result<TaprootSpendInfo, ProgramError> {
     let internal_key = default_internal_key();
     let builder = TaprootBuilder::new();
 
@@ -20,9 +20,9 @@ pub fn create_taproot_info(compiled: &CompiledProgram) -> Result<TaprootSpendInf
 
     let builder = builder
         .add_leaf_with_ver(0, script, version)
-        .map_err(|e| ContractError::TaprootError(e.to_string()))?;
+        .map_err(|e| ProgramError::TaprootError(e.to_string()))?;
 
     builder
         .finalize(&Secp256k1::new(), internal_key)
-        .map_err(|e| ContractError::TaprootError(e.to_string()))
+        .map_err(|e| ProgramError::TaprootError(e.to_string()))
 }

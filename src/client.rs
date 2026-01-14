@@ -1,11 +1,11 @@
 //! Abstract interface for interacting with Elements nodes
 
-use crate::error::ContractError;
+use crate::error::ProgramError;
 use elements::hashes::Hash;
 use elements::{Address, BlockHash, Transaction, Txid};
 
 /// Result type for node client operations
-pub type ClientResult<T> = Result<T, ContractError>;
+pub type ClientResult<T> = Result<T, ProgramError>;
 
 /// UTXO representation for spending
 #[derive(Debug, Clone)]

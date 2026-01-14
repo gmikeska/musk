@@ -2,19 +2,19 @@
 
 use thiserror::Error;
 
-/// Errors that can occur during contract operations
+/// Errors that can occur during program operations
 #[derive(Debug, Error)]
-pub enum ContractError {
-    #[error("Failed to parse contract source: {0}")]
+pub enum ProgramError {
+    #[error("Failed to parse program source: {0}")]
     ParseError(String),
 
-    #[error("Failed to compile contract: {0}")]
+    #[error("Failed to compile program: {0}")]
     CompileError(String),
 
-    #[error("Failed to instantiate contract: {0}")]
+    #[error("Failed to instantiate program: {0}")]
     InstantiationError(String),
 
-    #[error("Failed to satisfy contract: {0}")]
+    #[error("Failed to satisfy program: {0}")]
     SatisfactionError(String),
 
     #[error("IO error: {0}")]
@@ -39,8 +39,8 @@ pub enum SpendError {
     #[error("Invalid UTXO: {0}")]
     InvalidUtxo(String),
 
-    #[error("Contract error: {0}")]
-    ContractError(#[from] ContractError),
+    #[error("Program error: {0}")]
+    ProgramError(#[from] ProgramError),
 
     #[error("Type inference error: {0}")]
     TypeInferenceError(String),

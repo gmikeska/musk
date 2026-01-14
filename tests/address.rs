@@ -1,12 +1,12 @@
 //! Unit tests for address generation and taproot utilities
 
-use musk::{Arguments, Contract};
+use musk::{Arguments, Program};
 
 #[test]
 fn test_create_taproot_info() {
-    // Compile a simple contract
-    let contract = Contract::from_source("fn main() { assert!(true); }").unwrap();
-    let compiled = contract.instantiate(Arguments::default()).unwrap();
+    // Compile a simple program
+    let program = Program::from_source("fn main() { assert!(true); }").unwrap();
+    let compiled = program.instantiate(Arguments::default()).unwrap();
 
     // Get taproot info
     let taproot_info = compiled.taproot_info();
@@ -24,12 +24,12 @@ fn test_create_taproot_info() {
 fn test_taproot_info_deterministic() {
     let source = "fn main() { assert!(true); }";
 
-    // Compile same contract twice
-    let contract1 = Contract::from_source(source).unwrap();
-    let compiled1 = contract1.instantiate(Arguments::default()).unwrap();
+    // Compile same program twice
+    let program1 = Program::from_source(source).unwrap();
+    let compiled1 = program1.instantiate(Arguments::default()).unwrap();
 
-    let contract2 = Contract::from_source(source).unwrap();
-    let compiled2 = contract2.instantiate(Arguments::default()).unwrap();
+    let program2 = Program::from_source(source).unwrap();
+    let compiled2 = program2.instantiate(Arguments::default()).unwrap();
 
     // Taproot info should be identical
     let info1 = compiled1.taproot_info();
@@ -41,8 +41,8 @@ fn test_taproot_info_deterministic() {
 
 #[test]
 fn test_taproot_address_format() {
-    let contract = Contract::from_source("fn main() { assert!(true); }").unwrap();
-    let compiled = contract.instantiate(Arguments::default()).unwrap();
+    let program = Program::from_source("fn main() { assert!(true); }").unwrap();
+    let compiled = program.instantiate(Arguments::default()).unwrap();
 
     // Test regtest address
     let regtest_addr = compiled.address(&musk::elements::AddressParams::ELEMENTS);
@@ -69,8 +69,8 @@ fn test_taproot_address_format() {
 
 #[test]
 fn test_script_version() {
-    let contract = Contract::from_source("fn main() { assert!(true); }").unwrap();
-    let compiled = contract.instantiate(Arguments::default()).unwrap();
+    let program = Program::from_source("fn main() { assert!(true); }").unwrap();
+    let compiled = program.instantiate(Arguments::default()).unwrap();
 
     let (script, leaf_version) = compiled.script_version();
 
@@ -87,8 +87,8 @@ fn test_script_version() {
 
 #[test]
 fn test_control_block_exists() {
-    let contract = Contract::from_source("fn main() { assert!(true); }").unwrap();
-    let compiled = contract.instantiate(Arguments::default()).unwrap();
+    let program = Program::from_source("fn main() { assert!(true); }").unwrap();
+    let compiled = program.instantiate(Arguments::default()).unwrap();
 
     let taproot_info = compiled.taproot_info();
     let (script, version) = compiled.script_version();
@@ -97,26 +97,26 @@ fn test_control_block_exists() {
     let control_block = taproot_info.control_block(&(script, version));
     assert!(
         control_block.is_some(),
-        "Control block should exist for the contract script"
+        "Control block should exist for the program script"
     );
 }
 
 #[test]
-fn test_different_contracts_different_addresses() {
-    let contract1 = Contract::from_source("fn main() { assert!(true); }").unwrap();
-    let compiled1 = contract1.instantiate(Arguments::default()).unwrap();
+fn test_different_programs_different_addresses() {
+    let program1 = Program::from_source("fn main() { assert!(true); }").unwrap();
+    let compiled1 = program1.instantiate(Arguments::default()).unwrap();
 
-    // Different contract source
-    let contract2 =
-        Contract::from_source("fn main() { let x: u32 = 1; assert!(jet::eq_32(x, 1)); }").unwrap();
-    let compiled2 = contract2.instantiate(Arguments::default()).unwrap();
+    // Different program source
+    let program2 =
+        Program::from_source("fn main() { let x: u32 = 1; assert!(jet::eq_32(x, 1)); }").unwrap();
+    let compiled2 = program2.instantiate(Arguments::default()).unwrap();
 
     let addr1 = compiled1.address(&musk::elements::AddressParams::ELEMENTS);
     let addr2 = compiled2.address(&musk::elements::AddressParams::ELEMENTS);
 
-    // Different contracts should produce different addresses
+    // Different programs should produce different addresses
     assert_ne!(
         addr1, addr2,
-        "Different contracts should have different addresses"
+        "Different programs should have different addresses"
     );
 }

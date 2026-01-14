@@ -1,7 +1,7 @@
 //! Witness utilities and signing helpers
 //!
 //! This module provides the `WitnessBuilder` for constructing witness values
-//! for Simplicity contracts.
+//! for Simplicity programs.
 //!
 //! # Examples
 //!

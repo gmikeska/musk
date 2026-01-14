@@ -1,7 +1,7 @@
 //! Transaction construction and spending utilities
 
 use crate::client::Utxo;
-use crate::contract::{CompiledContract, SatisfiedContract};
+use crate::program::{InstantiatedProgram, SatisfiedProgram};
 use crate::error::SpendError;
 use elements::hashes::Hash;
 use elements::pset::PartiallySignedTransaction as Psbt;
@@ -14,7 +14,7 @@ use simplicityhl::WitnessValues;
 
 /// Builder for constructing spending transactions
 pub struct SpendBuilder {
-    contract: CompiledContract,
+    program: InstantiatedProgram,
     utxo: Utxo,
     outputs: Vec<TxOut>,
     lock_time: LockTime,
@@ -23,11 +23,11 @@ pub struct SpendBuilder {
 }
 
 impl SpendBuilder {
-    /// Create a new spend builder for the given contract and UTXO
+    /// Create a new spend builder for the given program and UTXO
     #[must_use]
-    pub fn new(contract: CompiledContract, utxo: Utxo) -> Self {
+    pub fn new(program: InstantiatedProgram, utxo: Utxo) -> Self {
         Self {
-            contract,
+            program,
             utxo,
             outputs: Vec::new(),
             lock_time: LockTime::ZERO,
@@ -101,18 +101,18 @@ impl SpendBuilder {
             asset: self.utxo.asset,
         };
 
-        let (script, _version) = self.contract.script_version();
+        let (script, _version) = self.program.script_version();
         let control_block = self
-            .contract
+            .program
             .taproot_info()
-            .control_block(&(script, self.contract.script_version().1))
+            .control_block(&(script, self.program.script_version().1))
             .ok_or_else(|| SpendError::BuildError("Control block not found".into()))?;
 
         let env = ElementsEnv::new(
             &tx,
             vec![utxo],
             0,
-            self.contract.cmr(),
+            self.program.cmr(),
             control_block,
             None,
             self.genesis_hash,
@@ -142,24 +142,24 @@ impl SpendBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error if the contract cannot be satisfied or the transaction cannot be finalized.
+    /// Returns an error if the program cannot be satisfied or the transaction cannot be finalized.
     pub fn finalize(self, witness_values: WitnessValues) -> Result<Transaction, SpendError> {
-        let satisfied = self.contract.satisfy(witness_values)?;
+        let satisfied = self.program.satisfy(witness_values)?;
         self.finalize_with_satisfied(&satisfied)
     }
 
-    /// Finalize the transaction with a pre-satisfied contract
+    /// Finalize the transaction with a pre-satisfied program
     ///
     /// # Errors
     ///
     /// Returns an error if the control block cannot be found or transaction extraction fails.
     pub fn finalize_with_satisfied(
         self,
-        satisfied: &SatisfiedContract,
+        satisfied: &SatisfiedProgram,
     ) -> Result<Transaction, SpendError> {
         let mut psbt = Psbt::from_tx(self.build_unsigned_tx());
 
-        let (script, version) = self.contract.script_version();
+        let (script, version) = self.program.script_version();
         let control_block = satisfied
             .taproot_info()
             .control_block(&(script.clone(), version))
@@ -185,7 +185,7 @@ impl SpendBuilder {
 ///
 /// Returns an error if the asset is not explicit or the transaction cannot be built.
 pub fn simple_spend(
-    contract: CompiledContract,
+    program: InstantiatedProgram,
     utxo: Utxo,
     destination: Script,
     amount: u64,
@@ -197,7 +197,7 @@ pub fn simple_spend(
         return Err(SpendError::InvalidUtxo("Non-explicit asset".into()));
     };
 
-    let mut builder = SpendBuilder::new(contract, utxo).genesis_hash(genesis_hash);
+    let mut builder = SpendBuilder::new(program, utxo).genesis_hash(genesis_hash);
     builder.add_output_simple(destination, amount, asset);
     builder.add_fee(fee, asset);
     builder.finalize(witness_values)

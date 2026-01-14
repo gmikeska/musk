@@ -1,14 +1,14 @@
 //! Integration tests for musk
 
-use musk::{Arguments, Contract, WitnessValues};
+use musk::{Arguments, Program, WitnessValues};
 
 #[test]
-fn test_simple_contract_lifecycle() {
-    // Compile a simple contract
-    let contract = Contract::from_source("fn main() { assert!(true); }").unwrap();
+fn test_simple_program_lifecycle() {
+    // Compile a simple program
+    let program = Program::from_source("fn main() { assert!(true); }").unwrap();
 
     // Instantiate with no arguments
-    let compiled = contract.instantiate(Arguments::default()).unwrap();
+    let compiled = program.instantiate(Arguments::default()).unwrap();
 
     // Generate address
     let address = compiled.address(&elements::AddressParams::ELEMENTS);
@@ -27,15 +27,15 @@ fn test_simple_contract_lifecycle() {
 }
 
 #[test]
-fn test_contract_determinism() {
+fn test_program_determinism() {
     // Same source should produce same CMR
     let source = "fn main() { assert!(true); }";
 
-    let contract1 = Contract::from_source(source).unwrap();
-    let compiled1 = contract1.instantiate(Arguments::default()).unwrap();
+    let program1 = Program::from_source(source).unwrap();
+    let compiled1 = program1.instantiate(Arguments::default()).unwrap();
 
-    let contract2 = Contract::from_source(source).unwrap();
-    let compiled2 = contract2.instantiate(Arguments::default()).unwrap();
+    let program2 = Program::from_source(source).unwrap();
+    let compiled2 = program2.instantiate(Arguments::default()).unwrap();
 
     assert_eq!(compiled1.cmr(), compiled2.cmr());
 

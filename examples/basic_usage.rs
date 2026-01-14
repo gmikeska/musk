@@ -1,36 +1,36 @@
-//! Example: Using musk library for contract operations
+//! Example: Using musk library for program operations
 //!
 //! This example shows how to use musk in a production application
 
 use musk::{
-    client::NodeClient, Arguments, Contract, SpendBuilder, Value, WitnessName, WitnessValues,
+    client::NodeClient, Arguments, Program, SpendBuilder, Value, WitnessName, WitnessValues,
 };
 use std::collections::HashMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Musk Library Usage Example\n");
 
-    // 1. Load a contract
-    println!("1. Loading contract...");
-    let contract = Contract::from_source(
+    // 1. Load a program
+    println!("1. Loading program...");
+    let program = Program::from_source(
         r#"
         fn main() {
-            // Simple contract that always succeeds
+            // Simple program that always succeeds
             assert!(true);
         }
     "#,
     )?;
-    println!("   ✓ Contract loaded");
+    println!("   ✓ Program loaded");
 
     // 2. Check parameters
     println!("\n2. Checking parameters...");
-    let params = contract.parameters();
+    let params = program.parameters();
     println!("   Parameters: {:?}", params);
 
-    // 3. Compile the contract
-    println!("\n3. Compiling contract...");
-    let compiled = contract.instantiate(Arguments::default())?;
-    println!("   ✓ Contract compiled");
+    // 3. Compile the program
+    println!("\n3. Compiling program...");
+    let compiled = program.instantiate(Arguments::default())?;
+    println!("   ✓ Program compiled");
     println!("   CMR: {}", compiled.cmr());
 
     // 4. Generate address
@@ -40,8 +40,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 5. Show transaction building (conceptual)
     println!("\n5. Building transaction (conceptual)...");
-    println!("   To spend from this contract:");
-    println!("   - Create a SpendBuilder with the compiled contract and UTXO");
+    println!("   To spend from this program:");
+    println!("   - Create a SpendBuilder with the compiled program and UTXO");
     println!("   - Add outputs and set lock_time/sequence as needed");
     println!("   - Compute sighash_all() for signature generation");
     println!("   - Generate witness values");

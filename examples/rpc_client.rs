@@ -1,7 +1,7 @@
 //! Example: Using musk's RpcClient to connect to Elements nodes
 //!
 //! This example demonstrates how to use the RpcClient to connect to
-//! an Elements node and interact with Simplicity contracts.
+//! an Elements node and interact with Simplicity programs.
 //!
 //! Run with: cargo run --example rpc_client
 //!
@@ -9,7 +9,7 @@
 //!   - Elements node running (regtest mode)
 //!   - RPC credentials configured
 
-use musk::{Arguments, Contract, NodeConfig, RpcClient, SpendBuilder};
+use musk::{Arguments, Program, NodeConfig, RpcClient, SpendBuilder};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Musk RpcClient Example\n");
@@ -51,8 +51,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("   Balance: {} BTC", balance);
                     }
 
-                    // Demonstrate contract workflow
-                    demonstrate_contract_workflow(&client)?;
+                    // Demonstrate program workflow
+                    demonstrate_program_workflow(&client)?;
                 }
                 Err(e) => {
                     println!("   ✗ Connection failed: {}", e);
@@ -94,23 +94,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn demonstrate_contract_workflow(client: &RpcClient) -> Result<(), Box<dyn std::error::Error>> {
+fn demonstrate_program_workflow(client: &RpcClient) -> Result<(), Box<dyn std::error::Error>> {
     use musk::client::NodeClient;
 
-    println!("\n6. Contract workflow demonstration...");
+    println!("\n6. Program workflow demonstration...");
 
-    // Load a simple contract
-    let contract_source = r#"
+    // Load a simple program
+    let program_source = r#"
 fn main() {
     assert!(true);
 }
 "#;
 
-    let contract = Contract::from_source(contract_source)?;
-    println!("   ✓ Contract loaded");
+    let program = Program::from_source(program_source)?;
+    println!("   ✓ Program loaded");
 
-    let compiled = contract.instantiate(Arguments::default())?;
-    println!("   ✓ Contract compiled");
+    let compiled = program.instantiate(Arguments::default())?;
+    println!("   ✓ Program compiled");
     println!("   CMR: {}", compiled.cmr());
 
     // Generate address using client's network params
@@ -118,7 +118,7 @@ fn main() {
     println!("   Address: {}", address);
 
     // Fund the address (requires wallet with funds)
-    println!("\n   Funding contract address...");
+    println!("\n   Funding program address...");
     match client.send_to_address(&address, 100_000_000) {
         // 1 BTC
         Ok(txid) => {

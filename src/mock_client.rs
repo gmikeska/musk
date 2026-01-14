@@ -3,7 +3,7 @@
 #![cfg(test)]
 
 use crate::client::{ClientResult, NodeClient, Utxo};
-use crate::error::ContractError;
+use crate::error::ProgramError;
 use elements::{Address, BlockHash, Transaction, Txid};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -126,7 +126,7 @@ impl NodeClient for MockClient {
             .transactions
             .get(txid)
             .cloned()
-            .ok_or_else(|| ContractError::IoError(std::io::Error::other("Transaction not found")))
+            .ok_or_else(|| ProgramError::IoError(std::io::Error::other("Transaction not found")))
     }
 
     fn broadcast(&self, tx: &Transaction) -> ClientResult<Txid> {
@@ -172,7 +172,7 @@ impl NodeClient for MockClient {
         let secp = Secp256k1::new();
         let secret_bytes: [u8; 32] = rand::random();
         let secret_key = secp256k1::SecretKey::from_slice(&secret_bytes).map_err(|e| {
-            ContractError::IoError(std::io::Error::other(format!("Key error: {e}")))
+            ProgramError::IoError(std::io::Error::other(format!("Key error: {e}")))
         })?;
         let secp_pubkey = secp256k1::PublicKey::from_secret_key(&secp, &secret_key);
         let bitcoin_pubkey = PublicKey::new(secp_pubkey);

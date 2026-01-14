@@ -2,22 +2,22 @@
 
 #![cfg(test)]
 
-/// Simple contract that always succeeds
-pub const SIMPLE_CONTRACT: &str = "fn main() { assert!(true); }";
+/// Simple program that always succeeds
+pub const SIMPLE_PROGRAM: &str = "fn main() { assert!(true); }";
 
-/// Simple contract that always fails
-pub const FAILING_CONTRACT: &str = "fn main() { assert!(false); }";
+/// Simple program that always fails
+pub const FAILING_PROGRAM: &str = "fn main() { assert!(false); }";
 
-/// Contract with a parameter
-pub const PARAMETERIZED_CONTRACT: &str = r#"
+/// Program with a parameter
+pub const PARAMETERIZED_PROGRAM: &str = r#"
 fn main() {
     let x: u32 = param::VALUE;
     assert!(jet::eq_32(x, 42));
 }
 "#;
 
-/// Pay-to-public-key contract for signature tests
-pub const P2PK_CONTRACT: &str = r#"
+/// Pay-to-public-key program for signature tests
+pub const P2PK_PROGRAM: &str = r#"
 fn main() {
     let pk: Pubkey = param::PK;
     let sig: Signature = witness::SIG;
@@ -25,8 +25,8 @@ fn main() {
 }
 "#;
 
-/// OP_CAT contract from SimplicityHL examples
-pub const CAT_CONTRACT: &str = r#"
+/// OP_CAT program from SimplicityHL examples
+pub const CAT_PROGRAM: &str = r#"
 fn main() {
     let ab: u16 = <(u8, u8)>::into((0x10, 0x01));
     let c: u16 = 0x1001;
