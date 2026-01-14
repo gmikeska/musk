@@ -49,13 +49,17 @@ pub fn test_genesis_hash() -> elements::BlockHash {
 pub fn test_utxo() -> crate::client::Utxo {
     use elements::hashes::Hash;
     use elements::issuance::AssetId;
-    
+
     crate::client::Utxo {
-        txid: elements::Txid::from_raw_hash(elements::hashes::sha256d::Hash::from_byte_array([2u8; 32])),
+        txid: elements::Txid::from_raw_hash(elements::hashes::sha256d::Hash::from_byte_array(
+            [2u8; 32],
+        )),
         vout: 0,
         amount: 100_000_000,
         script_pubkey: elements::Script::new(),
-        asset: elements::confidential::Asset::Explicit(AssetId::from_slice(&[0u8; 32]).expect("valid asset")),
+        asset: elements::confidential::Asset::Explicit(
+            AssetId::from_slice(&[0u8; 32]).expect("valid asset"),
+        ),
     }
 }
 
@@ -63,15 +67,14 @@ pub fn test_utxo() -> crate::client::Utxo {
 #[must_use]
 pub fn test_address() -> elements::Address {
     // Create a simple P2WPKH address for testing
-    use elements::AddressParams;
     use elements::bitcoin::{PublicKey, XOnlyPublicKey};
+    use elements::AddressParams;
     use secp256k1::Secp256k1;
-    
+
     let secp = Secp256k1::new();
     let secret_key = secp256k1::SecretKey::from_slice(&[1u8; 32]).expect("valid key");
     let secp_pubkey = secp256k1::PublicKey::from_secret_key(&secp, &secret_key);
     let bitcoin_pubkey = PublicKey::new(secp_pubkey);
-    
+
     elements::Address::p2wpkh(&bitcoin_pubkey, None, &AddressParams::ELEMENTS)
 }
-

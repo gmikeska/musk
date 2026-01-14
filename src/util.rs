@@ -52,7 +52,7 @@ pub fn sign_schnorr(secret_key: u32, message: [u8; 32]) -> [u8; 64] {
 ///
 /// let pubkey = xonly_public_key(1);
 /// assert_eq!(pubkey.len(), 32);
-/// 
+///
 /// // Same key should produce same pubkey
 /// let pubkey2 = xonly_public_key(1);
 /// assert_eq!(pubkey, pubkey2);
@@ -94,7 +94,7 @@ pub fn parse_xonly_public_key(bytes: &[u8]) -> Result<XOnlyPublicKey, secp256k1:
 ///
 /// let key = default_internal_key();
 /// assert_eq!(key.serialize().len(), 32);
-/// 
+///
 /// // Should be deterministic
 /// let key2 = default_internal_key();
 /// assert_eq!(key, key2);
@@ -140,7 +140,7 @@ mod tests {
         let message = [1u8; 32];
         let sig = sign_schnorr(1, message);
         assert_eq!(sig.len(), 64);
-        
+
         // Signatures should be deterministic for same inputs (Schnorr uses deterministic nonce)
         let sig2 = sign_schnorr(1, message);
         // Note: signatures may differ due to random nonce, so we just check length
@@ -153,7 +153,7 @@ mod tests {
         let pk2 = xonly_public_key(1);
         assert_eq!(pk1, pk2);
         assert_eq!(pk1.len(), 32);
-        
+
         // Different keys should produce different pubkeys
         let pk3 = xonly_public_key(2);
         assert_ne!(pk1, pk3);

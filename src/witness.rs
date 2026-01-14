@@ -169,9 +169,7 @@ mod tests {
 
     #[test]
     fn test_witness_builder_with_pubkey() {
-        let witness = WitnessBuilder::new()
-            .with_pubkey("pk", 1)
-            .build();
+        let witness = WitnessBuilder::new().with_pubkey("pk", 1).build();
         // Should be able to build witness with pubkey
         assert!(std::mem::size_of_val(&witness) > 0);
     }

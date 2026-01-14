@@ -53,9 +53,9 @@ pub mod util;
 pub mod witness;
 
 #[cfg(test)]
-mod test_fixtures;
-#[cfg(test)]
 mod mock_client;
+#[cfg(test)]
+mod test_fixtures;
 
 // Re-export core types
 pub use client::NodeClient;
