@@ -80,6 +80,13 @@ pub struct RpcConfig {
     pub user: String,
     /// RPC password
     pub password: String,
+    /// Wallet name (defaults to "musk" if not specified)
+    #[serde(default = "default_wallet_name")]
+    pub wallet: String,
+}
+
+fn default_wallet_name() -> String {
+    "musk".to_string()
 }
 
 impl Default for RpcConfig {
@@ -88,7 +95,18 @@ impl Default for RpcConfig {
             url: "http://127.0.0.1:18884".to_string(),
             user: "user".to_string(),
             password: "password".to_string(),
+            wallet: default_wallet_name(),
         }
+    }
+}
+
+impl RpcConfig {
+    /// Get the RPC URL with wallet path appended
+    /// 
+    /// Elements RPC uses `/wallet/<name>` for wallet-specific operations
+    #[must_use]
+    pub fn wallet_url(&self) -> String {
+        format!("{}/wallet/{}", self.url.trim_end_matches('/'), self.wallet)
     }
 }
 
@@ -248,14 +266,19 @@ impl NodeConfig {
         }
     }
 
-    /// Create config with custom RPC settings
+    /// Create config with custom RPC settings (preserves existing wallet name)
     #[must_use]
     pub fn with_rpc(mut self, url: &str, user: &str, password: &str) -> Self {
-        self.rpc = RpcConfig {
-            url: url.to_string(),
-            user: user.to_string(),
-            password: password.to_string(),
-        };
+        self.rpc.url = url.to_string();
+        self.rpc.user = user.to_string();
+        self.rpc.password = password.to_string();
+        self
+    }
+
+    /// Set the wallet name
+    #[must_use]
+    pub fn with_wallet(mut self, wallet: &str) -> Self {
+        self.rpc.wallet = wallet.to_string();
         self
     }
 
@@ -295,6 +318,17 @@ mod tests {
         let config = NodeConfig::default();
         assert_eq!(config.network(), Network::Regtest);
         assert_eq!(config.rpc.url, "http://127.0.0.1:18884");
+        assert_eq!(config.rpc.wallet, "musk");
+    }
+
+    #[test]
+    fn test_wallet_url() {
+        let config = NodeConfig::default();
+        assert_eq!(config.rpc.wallet_url(), "http://127.0.0.1:18884/wallet/musk");
+
+        let mut custom_config = NodeConfig::default();
+        custom_config.rpc.wallet = "samplicity".to_string();
+        assert_eq!(custom_config.rpc.wallet_url(), "http://127.0.0.1:18884/wallet/samplicity");
     }
 
     #[test]
@@ -315,6 +349,25 @@ genesis_hash = "abc123"
         assert_eq!(config.network(), Network::Testnet);
         assert_eq!(config.rpc.user, "myuser");
         assert_eq!(config.chain.genesis_hash, Some("abc123".to_string()));
+        // Wallet defaults to "musk" when not specified
+        assert_eq!(config.rpc.wallet, "musk");
+    }
+
+    #[test]
+    fn test_parse_toml_with_wallet() {
+        let toml_str = r#"
+[network]
+network = "testnet"
+
+[rpc]
+url = "http://localhost:18891"
+wallet = "samplicity"
+user = "elements"
+password = "elementspass"
+"#;
+        let config = NodeConfig::from_toml(toml_str).unwrap();
+        assert_eq!(config.rpc.wallet, "samplicity");
+        assert_eq!(config.rpc.wallet_url(), "http://localhost:18891/wallet/samplicity");
     }
 
     #[test]

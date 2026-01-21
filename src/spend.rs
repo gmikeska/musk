@@ -4,7 +4,6 @@ use crate::client::Utxo;
 use crate::error::SpendError;
 use crate::program::{InstantiatedProgram, SatisfiedProgram};
 use elements::hashes::Hash;
-use elements::pset::PartiallySignedTransaction as Psbt;
 use elements::{
     confidential, AssetIssuance, LockTime, Script, Sequence, Transaction, TxIn, TxInWitness, TxOut,
     TxOutWitness,
@@ -157,8 +156,6 @@ impl SpendBuilder {
         self,
         satisfied: &SatisfiedProgram,
     ) -> Result<Transaction, SpendError> {
-        let mut psbt = Psbt::from_tx(self.build_unsigned_tx());
-
         let (script, version) = self.program.script_version();
         let control_block = satisfied
             .taproot_info()
@@ -167,15 +164,33 @@ impl SpendBuilder {
 
         let (program_bytes, witness_bytes) = satisfied.encode();
 
-        psbt.inputs_mut()[0].final_script_witness = Some(vec![
-            witness_bytes,
-            program_bytes,
-            script.into_bytes(),
-            control_block.serialize(),
-        ]);
+        // Build the input witness stack for Simplicity/Taproot
+        let input_witness = TxInWitness {
+            amount_rangeproof: None,
+            inflation_keys_rangeproof: None,
+            script_witness: vec![
+                witness_bytes,
+                program_bytes,
+                script.into_bytes(),
+                control_block.serialize(),
+            ],
+            pegin_witness: vec![],
+        };
 
-        psbt.extract_tx()
-            .map_err(|e| SpendError::FinalizationError(e.to_string()))
+        // Build the transaction directly (avoid PSBT which may drop output witnesses)
+        Ok(Transaction {
+            version: 2,
+            lock_time: self.lock_time,
+            input: vec![TxIn {
+                previous_output: elements::OutPoint::new(self.utxo.txid, self.utxo.vout),
+                is_pegin: false,
+                script_sig: Script::new(),
+                sequence: self.sequence,
+                asset_issuance: AssetIssuance::null(),
+                witness: input_witness,
+            }],
+            output: self.outputs,
+        })
     }
 }
 

@@ -55,8 +55,10 @@ impl RpcClient {
     ///
     /// Returns an error if the RPC URL is invalid.
     pub fn new(config: NodeConfig) -> Result<Self, ProgramError> {
+        // Use wallet URL for wallet-specific RPC calls
+        let wallet_url = config.rpc.wallet_url();
         let transport = jsonrpc::simple_http::SimpleHttpTransport::builder()
-            .url(&config.rpc.url)
+            .url(&wallet_url)
             .map_err(|e| {
                 ProgramError::IoError(std::io::Error::other(format!("Invalid RPC URL: {e}")))
             })?
@@ -222,6 +224,106 @@ impl RpcClient {
     /// Returns an error if the RPC call fails.
     pub fn get_balance(&self) -> ClientResult<f64> {
         self.call("getbalance", &[])
+    }
+
+    /// Import an address to watch (without private key)
+    ///
+    /// This allows the wallet to track UTXOs for this address via `listunspent`.
+    /// Automatically detects wallet type and uses `importdescriptors` for descriptor
+    /// wallets or `importaddress` for legacy wallets.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - The address to import
+    /// * `label` - Optional label for the address
+    /// * `rescan` - Whether to rescan the blockchain (can be slow)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the RPC call fails.
+    pub fn import_address(&self, address: &str, label: Option<&str>, rescan: bool) -> ClientResult<()> {
+        // Try importdescriptors first (for descriptor wallets)
+        let desc = format!("addr({})", address);
+        
+        // Get checksum for the descriptor
+        let checksum_result: Result<serde_json::Value, _> = self.call("getdescriptorinfo", &[desc.clone().into()]);
+        
+        match checksum_result {
+            Ok(info) => {
+                // Use the descriptor with checksum from the response
+                if let Some(descriptor) = info.get("descriptor").and_then(|v| v.as_str()) {
+                    let timestamp = if rescan { 
+                        serde_json::json!(0) 
+                    } else { 
+                        serde_json::json!("now") 
+                    };
+                    
+                    let import_req = serde_json::json!([{
+                        "desc": descriptor,
+                        "timestamp": timestamp,
+                        "label": label.unwrap_or("samplicity"),
+                    }]);
+                    
+                    let result: serde_json::Value = self.call("importdescriptors", &[import_req])?;
+                    
+                    // Check if import was successful
+                    if let Some(arr) = result.as_array() {
+                        if let Some(first) = arr.first() {
+                            if first.get("success").and_then(|v| v.as_bool()) == Some(true) {
+                                return Ok(());
+                            }
+                            // If there's an error message, include it
+                            if let Some(err) = first.get("error").and_then(|v| v.get("message")).and_then(|v| v.as_str()) {
+                                return Err(ProgramError::IoError(std::io::Error::other(
+                                    format!("importdescriptors failed: {}", err)
+                                )));
+                            }
+                        }
+                    }
+                    return Ok(());
+                }
+                // Fall through to legacy import if descriptor parsing failed
+            }
+            Err(_) => {
+                // getdescriptorinfo failed - try legacy importaddress
+            }
+        }
+        
+        // Fall back to importaddress for legacy wallets
+        let label_val = label.unwrap_or("");
+        let _: serde_json::Value = self.call(
+            "importaddress",
+            &[
+                serde_json::json!(address),
+                serde_json::json!(label_val),
+                serde_json::json!(rescan),
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Import a blinding key for a confidential address
+    ///
+    /// This allows the wallet to unblind confidential transaction outputs
+    /// sent to this address.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - The address to import the blinding key for
+    /// * `blinding_key` - The hex-encoded blinding private key
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the RPC call fails.
+    pub fn import_blinding_key(&self, address: &str, blinding_key: &str) -> ClientResult<()> {
+        let _: serde_json::Value = self.call(
+            "importblindingkey",
+            &[
+                serde_json::json!(address),
+                serde_json::json!(blinding_key),
+            ],
+        )?;
+        Ok(())
     }
 }
 
