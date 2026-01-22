@@ -248,58 +248,53 @@ impl RpcClient {
         rescan: bool,
     ) -> ClientResult<()> {
         // Try importdescriptors first (for descriptor wallets)
-        let desc = format!("addr({})", address);
+        let desc = format!("addr({address})");
 
         // Get checksum for the descriptor
         let checksum_result: Result<serde_json::Value, _> =
-            self.call("getdescriptorinfo", &[desc.clone().into()]);
+            self.call("getdescriptorinfo", &[desc.into()]);
 
-        match checksum_result {
-            Ok(info) => {
-                // Use the descriptor with checksum from the response
-                if let Some(descriptor) = info.get("descriptor").and_then(|v| v.as_str()) {
-                    let timestamp = if rescan {
-                        serde_json::json!(0)
-                    } else {
-                        serde_json::json!("now")
-                    };
+        if let Ok(info) = checksum_result {
+            // Use the descriptor with checksum from the response
+            if let Some(descriptor) = info.get("descriptor").and_then(|v| v.as_str()) {
+                let timestamp = if rescan {
+                    serde_json::json!(0)
+                } else {
+                    serde_json::json!("now")
+                };
 
-                    let import_req = serde_json::json!([{
-                        "desc": descriptor,
-                        "timestamp": timestamp,
-                        "label": label.unwrap_or("samplicity"),
-                    }]);
+                let import_req = serde_json::json!([{
+                    "desc": descriptor,
+                    "timestamp": timestamp,
+                    "label": label.unwrap_or("samplicity"),
+                }]);
 
-                    let result: serde_json::Value =
-                        self.call("importdescriptors", &[import_req])?;
+                let result: serde_json::Value =
+                    self.call("importdescriptors", &[import_req])?;
 
-                    // Check if import was successful
-                    if let Some(arr) = result.as_array() {
-                        if let Some(first) = arr.first() {
-                            if first.get("success").and_then(|v| v.as_bool()) == Some(true) {
-                                return Ok(());
-                            }
-                            // If there's an error message, include it
-                            if let Some(err) = first
-                                .get("error")
-                                .and_then(|v| v.get("message"))
-                                .and_then(|v| v.as_str())
-                            {
-                                return Err(ProgramError::IoError(std::io::Error::other(format!(
-                                    "importdescriptors failed: {}",
-                                    err
-                                ))));
-                            }
+                // Check if import was successful
+                if let Some(arr) = result.as_array() {
+                    if let Some(first) = arr.first() {
+                        if first.get("success").and_then(serde_json::Value::as_bool) == Some(true) {
+                            return Ok(());
+                        }
+                        // If there's an error message, include it
+                        if let Some(err) = first
+                            .get("error")
+                            .and_then(|v| v.get("message"))
+                            .and_then(|v| v.as_str())
+                        {
+                            return Err(ProgramError::IoError(std::io::Error::other(format!(
+                                "importdescriptors failed: {err}"
+                            ))));
                         }
                     }
-                    return Ok(());
                 }
-                // Fall through to legacy import if descriptor parsing failed
+                return Ok(());
             }
-            Err(_) => {
-                // getdescriptorinfo failed - try legacy importaddress
-            }
+            // Fall through to legacy import if descriptor parsing failed
         }
+        // getdescriptorinfo failed - try legacy importaddress
 
         // Fall back to importaddress for legacy wallets
         let label_val = label.unwrap_or("");
