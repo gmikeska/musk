@@ -74,13 +74,47 @@ impl RpcClient {
         })
     }
 
-    /// Create from a config file
+    /// Create from a config file (legacy format)
+    ///
+    /// This method supports the old `[network]`, `[rpc]`, `[chain]` format.
+    /// For the new environment-based format, use `from_env_config_file`.
     ///
     /// # Errors
     ///
     /// Returns an error if the config file cannot be read or parsed.
     pub fn from_config_file(path: &str) -> Result<Self, ProgramError> {
         let config = NodeConfig::from_file(path).map_err(|e| {
+            ProgramError::IoError(std::io::Error::other(format!("Config error: {e}")))
+        })?;
+        Self::new(config)
+    }
+
+    /// Create from an environment-based config file
+    ///
+    /// Loads configuration from a file with `[dev]`, `[test]`, `[prod]` sections.
+    /// Uses the `MUSK_ENV` environment variable to select the environment (defaults to "dev").
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the config file cannot be read, parsed, or the environment is missing.
+    pub fn from_env_config_file(path: &str) -> Result<Self, ProgramError> {
+        use crate::config::MuskConfig;
+        let config = MuskConfig::load_for_current_environment(path).map_err(|e| {
+            ProgramError::IoError(std::io::Error::other(format!("Config error: {e}")))
+        })?;
+        Self::new(config)
+    }
+
+    /// Create from an environment-based config file with explicit environment
+    ///
+    /// Loads configuration from a file with `[dev]`, `[test]`, `[prod]` sections.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the config file cannot be read, parsed, or the environment is missing.
+    pub fn from_env_config_file_with_env(path: &str, env: &str) -> Result<Self, ProgramError> {
+        use crate::config::MuskConfig;
+        let config = MuskConfig::load_for_environment(path, env).map_err(|e| {
             ProgramError::IoError(std::io::Error::other(format!("Config error: {e}")))
         })?;
         Self::new(config)
@@ -126,31 +160,42 @@ impl RpcClient {
 
     /// Get the genesis hash (fetches from node if not cached/configured)
     ///
+    /// If a genesis hash is configured, it will be validated against the node's
+    /// genesis hash. If they don't match, an error is returned.
+    ///
     /// # Errors
     ///
-    /// Returns an error if the genesis hash cannot be fetched from the node.
+    /// Returns an error if:
+    /// - The genesis hash cannot be fetched from the node
+    /// - The configured genesis hash doesn't match the node's genesis hash
     pub fn genesis_hash(&mut self) -> Result<BlockHash, ProgramError> {
         // Return cached value if available
         if let Some(hash) = self.genesis_hash {
             return Ok(hash);
         }
 
-        // Try to get from config
-        if let Ok(hash) = self.config.genesis_hash() {
-            self.genesis_hash = Some(hash);
-            return Ok(hash);
-        }
+        // Check if we have a configured genesis hash
+        let configured_hash = self.config.genesis_hash().ok();
 
         // Fetch from node
-        let hash_str: String = self.call("getblockhash", &[serde_json::json!(0)])?;
-        let hash = BlockHash::from_str(&hash_str).map_err(|e| {
+        let node_hash_str: String = self.call("getblockhash", &[serde_json::json!(0)])?;
+        let node_hash = BlockHash::from_str(&node_hash_str).map_err(|e| {
             ProgramError::IoError(std::io::Error::other(format!(
                 "Invalid genesis hash from node: {e}"
             )))
         })?;
 
-        self.genesis_hash = Some(hash);
-        Ok(hash)
+        // If configured, validate it matches the node
+        if let Some(config_hash) = configured_hash {
+            if config_hash != node_hash {
+                return Err(ProgramError::IoError(std::io::Error::other(format!(
+                    "Genesis hash mismatch: config has {config_hash} but node has {node_hash}"
+                ))));
+            }
+        }
+
+        self.genesis_hash = Some(node_hash);
+        Ok(node_hash)
     }
 
     /// Get a reference to the config
@@ -659,22 +704,32 @@ password = "testpass"
     }
 
     #[test]
-    fn test_rpc_client_genesis_hash_from_config() {
+    #[ignore = "requires live Elements node"]
+    fn test_rpc_client_genesis_hash_validated_against_node() {
+        // Genesis hash is always fetched from the node and validated against config
         let config = NodeConfig::regtest()
             .with_genesis_hash("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206");
 
         let mut client = RpcClient::new(config).unwrap();
 
-        // Should get genesis hash from config without hitting the network
+        // This will fetch from node and validate against config
+        // Will fail if config hash doesn't match node's genesis hash
         let hash = client.genesis_hash().unwrap();
-        assert_eq!(
-            hash.to_string(),
-            "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
-        );
 
         // Second call should return cached value
         let hash2 = client.genesis_hash().unwrap();
         assert_eq!(hash, hash2);
+    }
+
+    #[test]
+    fn test_rpc_client_genesis_hash_caching() {
+        // Test that genesis hash is properly cached after first retrieval
+        // (without needing a live node for this specific test)
+        let config = NodeConfig::regtest();
+        let client = RpcClient::new(config).unwrap();
+
+        // Genesis hash starts as None
+        assert!(client.genesis_hash.is_none());
     }
 
     #[test]

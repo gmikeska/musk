@@ -65,7 +65,7 @@ pub use spend::SpendBuilder;
 
 // Re-export config and RPC client when feature is enabled
 #[cfg(feature = "rpc")]
-pub use config::{ConfigError, Network, NodeConfig, RpcConfig};
+pub use config::{ConfigError, EnvironmentConfig, MuskConfig, Network, NodeConfig, RpcConfig};
 #[cfg(feature = "rpc")]
 pub use rpc_client::RpcClient;
 

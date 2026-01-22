@@ -3,20 +3,40 @@
 //! This module provides a configuration system for connecting musk to
 //! Elements/Liquid nodes via RPC.
 //!
-//! # Example Configuration File (musk.toml)
+//! # Environment-Based Configuration (musk.conf)
+//!
+//! The recommended format uses environment sections:
 //!
 //! ```toml
-//! [network]
+//! [dev]
 //! network = "regtest"
-//!
-//! [rpc]
 //! url = "http://127.0.0.1:18884"
+//! wallet = "musk"
 //! user = "user"
 //! password = "password"
 //!
-//! [chain]
-//! genesis_hash = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+//! [test]
+//! network = "testnet"
+//! url = "http://127.0.0.1:18892"
+//! wallet = "musk_test"
+//! user = "user"
+//! password = "password"
+//!
+//! [prod]
+//! network = "liquidv1"
+//! url = "http://127.0.0.1:7041"
+//! wallet = "musk_prod"
+//! user = "user"
+//! password = "password"
+//! genesis_hash = "1466275836220db2944ca059a3a10ef6fd2ea684b0688d2c379296888a206003"
 //! ```
+//!
+//! Select environment via `MUSK_ENV` environment variable (defaults to "dev").
+//!
+//! # Legacy Configuration Format
+//!
+//! The old format with `[network]`, `[rpc]`, `[chain]` sections is still supported
+//! for backward compatibility.
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -307,6 +327,153 @@ pub enum ConfigError {
 
     #[error("Invalid genesis hash: {0}")]
     InvalidGenesisHash(String),
+
+    #[error("Environment '{0}' not found in config (expected [dev], [test], or [prod] section)")]
+    MissingEnvironment(String),
+}
+
+// =============================================================================
+// Environment-Based Configuration
+// =============================================================================
+
+/// Configuration for a single environment (dev, test, or prod)
+///
+/// This is the new recommended format where each environment contains
+/// all its settings in a flat structure.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnvironmentConfig {
+    /// Network type (regtest, testnet, liquidv1)
+    #[serde(default)]
+    pub network: Network,
+    /// RPC URL
+    pub url: String,
+    /// Wallet name
+    #[serde(default = "default_wallet_name")]
+    pub wallet: String,
+    /// RPC username
+    pub user: String,
+    /// RPC password
+    pub password: String,
+    /// Optional genesis hash
+    pub genesis_hash: Option<String>,
+}
+
+impl EnvironmentConfig {
+    /// Convert to a `NodeConfig` for use with `RpcClient`
+    #[must_use]
+    pub fn to_node_config(&self) -> NodeConfig {
+        NodeConfig {
+            network_wrapper: NetworkWrapper {
+                network: self.network,
+            },
+            rpc: RpcConfig {
+                url: self.url.clone(),
+                user: self.user.clone(),
+                password: self.password.clone(),
+                wallet: self.wallet.clone(),
+            },
+            chain: ChainConfig {
+                genesis_hash: self.genesis_hash.clone(),
+            },
+        }
+    }
+}
+
+/// Multi-environment configuration file
+///
+/// Supports the new environment-based format with `[dev]`, `[test]`, and `[prod]` sections.
+/// Each section is optional, allowing users to configure only the environments they need.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct MuskConfig {
+    /// Development environment configuration
+    pub dev: Option<EnvironmentConfig>,
+    /// Test environment configuration
+    pub test: Option<EnvironmentConfig>,
+    /// Production environment configuration
+    pub prod: Option<EnvironmentConfig>,
+}
+
+impl MuskConfig {
+    /// Load configuration from a file
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read or parsed.
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ConfigError> {
+        let contents = std::fs::read_to_string(path)?;
+        Self::from_toml(&contents)
+    }
+
+    /// Parse configuration from a TOML string
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the TOML is invalid.
+    pub fn from_toml(toml_str: &str) -> Result<Self, ConfigError> {
+        toml::from_str(toml_str).map_err(ConfigError::Parse)
+    }
+
+    /// Get the `NodeConfig` for a specific environment
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - Environment name: "dev", "test", or "prod"
+    ///
+    /// # Errors
+    ///
+    /// Returns `ConfigError::MissingEnvironment` if the requested environment
+    /// is not configured.
+    pub fn for_environment(&self, env: &str) -> Result<NodeConfig, ConfigError> {
+        let env_config = match env {
+            "dev" => self.dev.as_ref(),
+            "test" => self.test.as_ref(),
+            "prod" => self.prod.as_ref(),
+            _ => return Err(ConfigError::MissingEnvironment(env.to_string())),
+        };
+
+        env_config
+            .map(EnvironmentConfig::to_node_config)
+            .ok_or_else(|| ConfigError::MissingEnvironment(env.to_string()))
+    }
+
+    /// Get `NodeConfig` for the environment specified by `MUSK_ENV` or default to "dev"
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the environment is not configured.
+    pub fn for_current_environment(&self) -> Result<NodeConfig, ConfigError> {
+        let env = std::env::var("MUSK_ENV").unwrap_or_else(|_| "dev".to_string());
+        self.for_environment(&env)
+    }
+
+    /// Load config file and return `NodeConfig` for specified environment
+    ///
+    /// Convenience method that combines `from_file` and `for_environment`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read, parsed, or if the
+    /// environment is not configured.
+    pub fn load_for_environment<P: AsRef<Path>>(
+        path: P,
+        env: &str,
+    ) -> Result<NodeConfig, ConfigError> {
+        let config = Self::from_file(path)?;
+        config.for_environment(env)
+    }
+
+    /// Load config file and return `NodeConfig` for current environment
+    ///
+    /// Uses `MUSK_ENV` environment variable, defaulting to "dev".
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read, parsed, or if the
+    /// environment is not configured.
+    pub fn load_for_current_environment<P: AsRef<Path>>(path: P) -> Result<NodeConfig, ConfigError> {
+        let config = Self::from_file(path)?;
+        config.for_current_environment()
+    }
 }
 
 #[cfg(test)]
@@ -678,5 +845,201 @@ genesis_hash = "abc123"
         assert_eq!(config.rpc.password, "p");
         assert_eq!(config.rpc.wallet, "w");
         assert!(config.chain.genesis_hash.is_some());
+    }
+
+    // =========================================================================
+    // Environment-Based Configuration Tests
+    // =========================================================================
+
+    #[test]
+    fn test_musk_config_parse_environments() {
+        let toml_str = r#"
+[dev]
+network = "regtest"
+url = "http://127.0.0.1:18884"
+wallet = "dev_wallet"
+user = "devuser"
+password = "devpass"
+
+[test]
+network = "testnet"
+url = "http://127.0.0.1:18892"
+wallet = "test_wallet"
+user = "testuser"
+password = "testpass"
+
+[prod]
+network = "liquidv1"
+url = "http://127.0.0.1:7041"
+wallet = "prod_wallet"
+user = "produser"
+password = "prodpass"
+genesis_hash = "1466275836220db2944ca059a3a10ef6fd2ea684b0688d2c379296888a206003"
+"#;
+        let config = MuskConfig::from_toml(toml_str).unwrap();
+
+        // Check dev environment
+        let dev = config.for_environment("dev").unwrap();
+        assert_eq!(dev.network(), Network::Regtest);
+        assert_eq!(dev.rpc.url, "http://127.0.0.1:18884");
+        assert_eq!(dev.rpc.wallet, "dev_wallet");
+        assert_eq!(dev.rpc.user, "devuser");
+
+        // Check test environment
+        let test = config.for_environment("test").unwrap();
+        assert_eq!(test.network(), Network::Testnet);
+        assert_eq!(test.rpc.url, "http://127.0.0.1:18892");
+        assert_eq!(test.rpc.wallet, "test_wallet");
+
+        // Check prod environment
+        let prod = config.for_environment("prod").unwrap();
+        assert_eq!(prod.network(), Network::Liquid);
+        assert_eq!(prod.rpc.url, "http://127.0.0.1:7041");
+        assert_eq!(prod.rpc.wallet, "prod_wallet");
+        assert!(prod.chain.genesis_hash.is_some());
+    }
+
+    #[test]
+    fn test_musk_config_partial_environments() {
+        // Only dev configured - test and prod should error
+        let toml_str = r#"
+[dev]
+network = "regtest"
+url = "http://127.0.0.1:18884"
+user = "user"
+password = "password"
+"#;
+        let config = MuskConfig::from_toml(toml_str).unwrap();
+
+        // Dev should work
+        assert!(config.for_environment("dev").is_ok());
+
+        // Test and prod should fail with MissingEnvironment
+        let test_result = config.for_environment("test");
+        assert!(matches!(
+            test_result.unwrap_err(),
+            ConfigError::MissingEnvironment(_)
+        ));
+
+        let prod_result = config.for_environment("prod");
+        assert!(matches!(
+            prod_result.unwrap_err(),
+            ConfigError::MissingEnvironment(_)
+        ));
+    }
+
+    #[test]
+    fn test_musk_config_invalid_environment() {
+        let toml_str = r#"
+[dev]
+network = "regtest"
+url = "http://127.0.0.1:18884"
+user = "user"
+password = "password"
+"#;
+        let config = MuskConfig::from_toml(toml_str).unwrap();
+
+        let result = config.for_environment("staging");
+        assert!(matches!(
+            result.unwrap_err(),
+            ConfigError::MissingEnvironment(_)
+        ));
+    }
+
+    #[test]
+    fn test_musk_config_from_file() {
+        let toml_content = r#"
+[dev]
+network = "testnet"
+url = "http://localhost:18891"
+wallet = "samplicity"
+user = "elements"
+password = "elementspass"
+
+[test]
+network = "testnet"
+url = "http://localhost:18891"
+wallet = "samplicity_test"
+user = "elements"
+password = "elementspass"
+
+[prod]
+network = "testnet"
+url = "http://localhost:18891"
+wallet = "samplicity_prod"
+user = "elements"
+password = "elementspass"
+"#;
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(toml_content.as_bytes()).unwrap();
+
+        let config = MuskConfig::from_file(temp_file.path()).unwrap();
+        let dev = config.for_environment("dev").unwrap();
+        assert_eq!(dev.rpc.wallet, "samplicity");
+
+        let test = config.for_environment("test").unwrap();
+        assert_eq!(test.rpc.wallet, "samplicity_test");
+    }
+
+    #[test]
+    fn test_musk_config_load_for_environment() {
+        let toml_content = r#"
+[dev]
+network = "regtest"
+url = "http://127.0.0.1:18884"
+wallet = "dev_wallet"
+user = "user"
+password = "password"
+"#;
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(toml_content.as_bytes()).unwrap();
+
+        let node_config =
+            MuskConfig::load_for_environment(temp_file.path(), "dev").unwrap();
+        assert_eq!(node_config.rpc.wallet, "dev_wallet");
+        assert_eq!(node_config.network(), Network::Regtest);
+    }
+
+    #[test]
+    fn test_environment_config_to_node_config() {
+        let env_config = EnvironmentConfig {
+            network: Network::Testnet,
+            url: "http://test:1234".to_string(),
+            wallet: "test_wallet".to_string(),
+            user: "testuser".to_string(),
+            password: "testpass".to_string(),
+            genesis_hash: Some("abc123".to_string()),
+        };
+
+        let node_config = env_config.to_node_config();
+        assert_eq!(node_config.network(), Network::Testnet);
+        assert_eq!(node_config.rpc.url, "http://test:1234");
+        assert_eq!(node_config.rpc.wallet, "test_wallet");
+        assert_eq!(node_config.rpc.user, "testuser");
+        assert_eq!(node_config.rpc.password, "testpass");
+        assert_eq!(node_config.chain.genesis_hash, Some("abc123".to_string()));
+    }
+
+    #[test]
+    fn test_musk_config_default_wallet() {
+        let toml_str = r#"
+[dev]
+network = "regtest"
+url = "http://127.0.0.1:18884"
+user = "user"
+password = "password"
+"#;
+        let config = MuskConfig::from_toml(toml_str).unwrap();
+        let dev = config.for_environment("dev").unwrap();
+        // Should default to "musk"
+        assert_eq!(dev.rpc.wallet, "musk");
+    }
+
+    #[test]
+    fn test_config_error_missing_environment_display() {
+        let err = ConfigError::MissingEnvironment("staging".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("staging"));
+        assert!(msg.contains("not found"));
     }
 }
