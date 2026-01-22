@@ -434,6 +434,7 @@ impl RpcClient {
         input_asset_blinders: &[String],
     ) -> ClientResult<String> {
         // Convert amounts to BTC (f64) as expected by the RPC
+        #[allow(clippy::cast_precision_loss)] // Intentional: RPC requires f64 BTC values
         let amounts_btc: Vec<f64> = input_amounts
             .iter()
             .map(|&sat| sat as f64 / 100_000_000.0)
@@ -918,7 +919,7 @@ password = "testpass"
         let config = NodeConfig::regtest();
         let client = RpcClient::new(config).unwrap();
 
-        let debug_str = format!("{:?}", client);
+        let debug_str = format!("{client:?}");
         assert!(debug_str.contains("RpcClient"));
         assert!(debug_str.contains("config"));
     }

@@ -13,6 +13,29 @@ use elements::{
 use simplicityhl::simplicity::jet::elements::{ElementsEnv, ElementsUtxo};
 use simplicityhl::WitnessValues;
 
+/// Convert a musk Utxo to an `ElementsUtxo` for sighash computation
+///
+/// Handles both confidential and explicit UTXOs correctly.
+fn utxo_to_elements_utxo(utxo: &Utxo) -> ElementsUtxo {
+    let value = utxo
+        .amount_commitment
+        .as_ref()
+        .and_then(|c| confidential::Value::from_commitment(c).ok())
+        .unwrap_or(confidential::Value::Explicit(utxo.amount));
+
+    let asset = utxo
+        .asset_commitment
+        .as_ref()
+        .and_then(|c| confidential::Asset::from_commitment(c).ok())
+        .unwrap_or(utxo.asset);
+
+    ElementsUtxo {
+        script_pubkey: utxo.script_pubkey.clone(),
+        value,
+        asset,
+    }
+}
+
 /// Parameters needed to blind a transaction via rawblindrawtransaction RPC
 #[derive(Debug, Clone)]
 pub struct BlindingParams {
@@ -250,34 +273,7 @@ impl SpendBuilder {
         let elements_utxos: Vec<ElementsUtxo> = self
             .utxos
             .iter()
-            .map(|utxo| {
-                let value = if utxo.is_confidential() {
-                    if let Some(commitment) = &utxo.amount_commitment {
-                        confidential::Value::from_commitment(commitment)
-                            .unwrap_or(confidential::Value::Explicit(utxo.amount))
-                    } else {
-                        confidential::Value::Explicit(utxo.amount)
-                    }
-                } else {
-                    confidential::Value::Explicit(utxo.amount)
-                };
-
-                let asset = if utxo.is_confidential() {
-                    if let Some(commitment) = &utxo.asset_commitment {
-                        confidential::Asset::from_commitment(commitment).unwrap_or(utxo.asset)
-                    } else {
-                        utxo.asset
-                    }
-                } else {
-                    utxo.asset
-                };
-
-                ElementsUtxo {
-                    script_pubkey: utxo.script_pubkey.clone(),
-                    value,
-                    asset,
-                }
-            })
+            .map(utxo_to_elements_utxo)
             .collect();
 
         let (script, _version) = self.program.script_version();
@@ -344,34 +340,7 @@ impl SpendBuilder {
         let elements_utxos: Vec<ElementsUtxo> = self
             .utxos
             .iter()
-            .map(|utxo| {
-                let value = if utxo.is_confidential() {
-                    if let Some(commitment) = &utxo.amount_commitment {
-                        confidential::Value::from_commitment(commitment)
-                            .unwrap_or(confidential::Value::Explicit(utxo.amount))
-                    } else {
-                        confidential::Value::Explicit(utxo.amount)
-                    }
-                } else {
-                    confidential::Value::Explicit(utxo.amount)
-                };
-
-                let asset = if utxo.is_confidential() {
-                    if let Some(commitment) = &utxo.asset_commitment {
-                        confidential::Asset::from_commitment(commitment).unwrap_or(utxo.asset)
-                    } else {
-                        utxo.asset
-                    }
-                } else {
-                    utxo.asset
-                };
-
-                ElementsUtxo {
-                    script_pubkey: utxo.script_pubkey.clone(),
-                    value,
-                    asset,
-                }
-            })
+            .map(utxo_to_elements_utxo)
             .collect();
 
         let (script, _version) = self.program.script_version();
@@ -794,7 +763,7 @@ mod tests {
         );
 
         let builder =
-            SpendBuilder::new_single(program, utxo).sequence(Sequence::from_consensus(0xFFFFFFFE));
+            SpendBuilder::new_single(program, utxo).sequence(Sequence::from_consensus(0xFFFF_FFFE));
 
         assert!(std::mem::size_of_val(&builder) > 0);
     }
@@ -972,7 +941,7 @@ mod tests {
         let asset = AssetId::from_slice(&[0u8; 32]).expect("valid asset");
 
         let lock_time = LockTime::from_height(500_000).unwrap();
-        let sequence = Sequence::from_consensus(0xFFFFFFFE);
+        let sequence = Sequence::from_consensus(0xFFFF_FFFE);
 
         let mut builder = SpendBuilder::new_single(program, utxo)
             .genesis_hash(genesis)

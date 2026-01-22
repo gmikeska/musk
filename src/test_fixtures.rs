@@ -1,6 +1,6 @@
 //! Test fixtures and constants for musk tests
 
-#![cfg(test)]
+#![allow(dead_code)] // Test fixtures may not all be used in every test
 
 /// Simple program that always succeeds
 pub const SIMPLE_PROGRAM: &str = "fn main() { assert!(true); }";
@@ -9,24 +9,24 @@ pub const SIMPLE_PROGRAM: &str = "fn main() { assert!(true); }";
 pub const FAILING_PROGRAM: &str = "fn main() { assert!(false); }";
 
 /// Program with a parameter
-pub const PARAMETERIZED_PROGRAM: &str = r#"
+pub const PARAMETERIZED_PROGRAM: &str = r"
 fn main() {
     let x: u32 = param::VALUE;
     assert!(jet::eq_32(x, 42));
 }
-"#;
+";
 
 /// Pay-to-public-key program for signature tests
-pub const P2PK_PROGRAM: &str = r#"
+pub const P2PK_PROGRAM: &str = r"
 fn main() {
     let pk: Pubkey = param::PK;
     let sig: Signature = witness::SIG;
     assert!(jet::bip_0340_verify((pk, jet::sig_all_hash()), sig));
 }
-"#;
+";
 
-/// OP_CAT program from SimplicityHL examples
-pub const CAT_PROGRAM: &str = r#"
+/// `OP_CAT` program from `SimplicityHL` examples
+pub const CAT_PROGRAM: &str = r"
 fn main() {
     let ab: u16 = <(u8, u8)>::into((0x10, 0x01));
     let c: u16 = 0x1001;
@@ -35,7 +35,7 @@ fn main() {
     let c: u8 = 0b10111101;
     assert!(jet::eq_8(ab, c));
 }
-"#;
+";
 
 /// Helper to create a dummy genesis hash for testing
 #[must_use]
@@ -71,7 +71,7 @@ pub fn test_utxo() -> crate::client::Utxo {
 #[must_use]
 pub fn test_address() -> elements::Address {
     // Create a simple P2WPKH address for testing
-    use elements::bitcoin::{PublicKey, XOnlyPublicKey};
+    use elements::bitcoin::PublicKey;
     use elements::AddressParams;
     use secp256k1::Secp256k1;
 

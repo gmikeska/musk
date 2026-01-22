@@ -619,7 +619,7 @@ password = "pass"
 
     #[test]
     fn test_network_default() {
-        let network: Network = Default::default();
+        let network: Network = Network::default();
         assert_eq!(network, Network::Regtest);
     }
 

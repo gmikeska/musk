@@ -1,6 +1,7 @@
-//! Mock NodeClient implementation for testing
+//! Mock `NodeClient` implementation for testing
 
-#![cfg(test)]
+#![allow(dead_code)] // Mock client methods may not all be used in every test
+#![allow(clippy::significant_drop_tightening)] // Test code doesn't need micro-optimizations
 
 use crate::client::{ClientResult, NodeClient, Utxo};
 use crate::error::ProgramError;
@@ -104,7 +105,7 @@ impl NodeClient for MockClient {
 
         // Store the transaction
         let mut inner = self.inner.lock().unwrap();
-        inner.transactions.insert(txid, tx.clone());
+        inner.transactions.insert(txid, tx);
 
         // Add UTXO for the address
         inner.utxos.entry(addr.clone()).or_default().push(Utxo {

@@ -53,8 +53,7 @@ impl Utxo {
     pub fn amount_blinder_hex(&self) -> String {
         use elements::hex::ToHex;
         self.amount_blinder
-            .map(|b| b.to_hex())
-            .unwrap_or_else(|| "0".repeat(64))
+            .map_or_else(|| "0".repeat(64), |b| b.to_hex())
     }
 
     /// Get the asset blinder as a hex string (for RPC calls)
@@ -62,8 +61,7 @@ impl Utxo {
     pub fn asset_blinder_hex(&self) -> String {
         use elements::hex::ToHex;
         self.asset_blinder
-            .map(|b| b.to_hex())
-            .unwrap_or_else(|| "0".repeat(64))
+            .map_or_else(|| "0".repeat(64), |b| b.to_hex())
     }
 }
 
@@ -214,7 +212,7 @@ mod tests {
             asset_commitment: None,
         };
 
-        let debug_str = format!("{:?}", utxo);
+        let debug_str = format!("{utxo:?}");
         assert!(debug_str.contains("Utxo"));
         assert!(debug_str.contains("vout: 1"));
         assert!(debug_str.contains("amount: 50000000"));
