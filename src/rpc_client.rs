@@ -362,10 +362,7 @@ impl RpcClient {
     ///
     /// Returns an error if the RPC call fails.
     pub fn test_mempool_accept(&self, tx_hex: &str) -> ClientResult<Vec<serde_json::Value>> {
-        self.call(
-            "testmempoolaccept",
-            &[serde_json::json!([tx_hex])],
-        )
+        self.call("testmempoolaccept", &[serde_json::json!([tx_hex])])
     }
 
     /// Decode a raw transaction directly from a Transaction object
