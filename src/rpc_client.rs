@@ -434,8 +434,11 @@ impl RpcClient {
         input_asset_blinders: &[String],
     ) -> ClientResult<String> {
         // Convert amounts to BTC (f64) as expected by the RPC
-        let amounts_btc: Vec<f64> = input_amounts.iter().map(|&sat| sat as f64 / 100_000_000.0).collect();
-        
+        let amounts_btc: Vec<f64> = input_amounts
+            .iter()
+            .map(|&sat| sat as f64 / 100_000_000.0)
+            .collect();
+
         let result: String = self.call(
             "rawblindrawtransaction",
             &[
@@ -477,7 +480,7 @@ impl RpcClient {
         input_asset_blinders: &[String],
     ) -> ClientResult<Transaction> {
         use elements::encode::serialize_hex;
-        
+
         let tx_hex = serialize_hex(tx);
         let blinded_hex = self.blind_raw_transaction(
             &tx_hex,
@@ -486,15 +489,19 @@ impl RpcClient {
             input_assets,
             input_asset_blinders,
         )?;
-        
+
         let blinded_bytes = Vec::<u8>::from_hex(&blinded_hex).map_err(|e| {
-            ProgramError::IoError(std::io::Error::other(format!("Invalid blinded tx hex: {e}")))
+            ProgramError::IoError(std::io::Error::other(format!(
+                "Invalid blinded tx hex: {e}"
+            )))
         })?;
-        
+
         let blinded_tx: Transaction = deserialize(&blinded_bytes).map_err(|e| {
-            ProgramError::IoError(std::io::Error::other(format!("Failed to deserialize blinded tx: {e}")))
+            ProgramError::IoError(std::io::Error::other(format!(
+                "Failed to deserialize blinded tx: {e}"
+            )))
         })?;
-        
+
         Ok(blinded_tx)
     }
 
@@ -688,10 +695,13 @@ impl NodeClient for RpcClient {
 
             // Parse blinding data from listunspent response
             // These are available when blinding key is imported to the wallet
-            let amount_blinder = parse_blinder_32(item.get("amountblinder").and_then(|v| v.as_str()));
+            let amount_blinder =
+                parse_blinder_32(item.get("amountblinder").and_then(|v| v.as_str()));
             let asset_blinder = parse_blinder_32(item.get("assetblinder").and_then(|v| v.as_str()));
-            let amount_commitment = parse_commitment_33(item.get("amountcommitment").and_then(|v| v.as_str()));
-            let asset_commitment = parse_commitment_33(item.get("assetcommitment").and_then(|v| v.as_str()));
+            let amount_commitment =
+                parse_commitment_33(item.get("amountcommitment").and_then(|v| v.as_str()));
+            let asset_commitment =
+                parse_commitment_33(item.get("assetcommitment").and_then(|v| v.as_str()));
 
             utxos.push(Utxo {
                 txid,

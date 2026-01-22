@@ -470,7 +470,9 @@ impl MuskConfig {
     ///
     /// Returns an error if the file cannot be read, parsed, or if the
     /// environment is not configured.
-    pub fn load_for_current_environment<P: AsRef<Path>>(path: P) -> Result<NodeConfig, ConfigError> {
+    pub fn load_for_current_environment<P: AsRef<Path>>(
+        path: P,
+    ) -> Result<NodeConfig, ConfigError> {
         let config = Self::from_file(path)?;
         config.for_current_environment()
     }
@@ -994,8 +996,7 @@ password = "password"
         let mut temp_file = NamedTempFile::new().unwrap();
         temp_file.write_all(toml_content.as_bytes()).unwrap();
 
-        let node_config =
-            MuskConfig::load_for_environment(temp_file.path(), "dev").unwrap();
+        let node_config = MuskConfig::load_for_environment(temp_file.path(), "dev").unwrap();
         assert_eq!(node_config.rpc.wallet, "dev_wallet");
         assert_eq!(node_config.network(), Network::Regtest);
     }

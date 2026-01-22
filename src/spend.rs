@@ -187,7 +187,7 @@ impl SpendBuilder {
     /// Returns an error if the control block cannot be found.
     pub fn sighash_all(&self) -> Result<[u8; 32], SpendError> {
         let tx = self.build_unsigned_tx();
-        
+
         // For sighash computation, we need to use the on-chain representation
         // For confidential inputs, we need to use committed values
         let value = if self.utxo.is_confidential() {
@@ -204,15 +204,14 @@ impl SpendBuilder {
 
         let asset = if self.utxo.is_confidential() {
             if let Some(commitment) = &self.utxo.asset_commitment {
-                confidential::Asset::from_commitment(commitment)
-                    .unwrap_or(self.utxo.asset)
+                confidential::Asset::from_commitment(commitment).unwrap_or(self.utxo.asset)
             } else {
                 self.utxo.asset
             }
         } else {
             self.utxo.asset
         };
-        
+
         let utxo = ElementsUtxo {
             script_pubkey: self.utxo.script_pubkey.clone(),
             value,
@@ -251,7 +250,10 @@ impl SpendBuilder {
     /// # Errors
     ///
     /// Returns an error if the control block cannot be found.
-    pub fn sighash_all_for_blinded(&self, blinded_tx: &Transaction) -> Result<[u8; 32], SpendError> {
+    pub fn sighash_all_for_blinded(
+        &self,
+        blinded_tx: &Transaction,
+    ) -> Result<[u8; 32], SpendError> {
         // For sighash computation with a blinded transaction, we need to use
         // the committed values from the input UTXO as it appears on-chain
         let value = if self.utxo.is_confidential() {
@@ -267,8 +269,7 @@ impl SpendBuilder {
 
         let asset = if self.utxo.is_confidential() {
             if let Some(commitment) = &self.utxo.asset_commitment {
-                confidential::Asset::from_commitment(commitment)
-                    .unwrap_or(self.utxo.asset)
+                confidential::Asset::from_commitment(commitment).unwrap_or(self.utxo.asset)
             } else {
                 self.utxo.asset
             }
