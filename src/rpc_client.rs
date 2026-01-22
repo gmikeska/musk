@@ -241,31 +241,38 @@ impl RpcClient {
     /// # Errors
     ///
     /// Returns an error if the RPC call fails.
-    pub fn import_address(&self, address: &str, label: Option<&str>, rescan: bool) -> ClientResult<()> {
+    pub fn import_address(
+        &self,
+        address: &str,
+        label: Option<&str>,
+        rescan: bool,
+    ) -> ClientResult<()> {
         // Try importdescriptors first (for descriptor wallets)
         let desc = format!("addr({})", address);
-        
+
         // Get checksum for the descriptor
-        let checksum_result: Result<serde_json::Value, _> = self.call("getdescriptorinfo", &[desc.clone().into()]);
-        
+        let checksum_result: Result<serde_json::Value, _> =
+            self.call("getdescriptorinfo", &[desc.clone().into()]);
+
         match checksum_result {
             Ok(info) => {
                 // Use the descriptor with checksum from the response
                 if let Some(descriptor) = info.get("descriptor").and_then(|v| v.as_str()) {
-                    let timestamp = if rescan { 
-                        serde_json::json!(0) 
-                    } else { 
-                        serde_json::json!("now") 
+                    let timestamp = if rescan {
+                        serde_json::json!(0)
+                    } else {
+                        serde_json::json!("now")
                     };
-                    
+
                     let import_req = serde_json::json!([{
                         "desc": descriptor,
                         "timestamp": timestamp,
                         "label": label.unwrap_or("samplicity"),
                     }]);
-                    
-                    let result: serde_json::Value = self.call("importdescriptors", &[import_req])?;
-                    
+
+                    let result: serde_json::Value =
+                        self.call("importdescriptors", &[import_req])?;
+
                     // Check if import was successful
                     if let Some(arr) = result.as_array() {
                         if let Some(first) = arr.first() {
@@ -273,10 +280,15 @@ impl RpcClient {
                                 return Ok(());
                             }
                             // If there's an error message, include it
-                            if let Some(err) = first.get("error").and_then(|v| v.get("message")).and_then(|v| v.as_str()) {
-                                return Err(ProgramError::IoError(std::io::Error::other(
-                                    format!("importdescriptors failed: {}", err)
-                                )));
+                            if let Some(err) = first
+                                .get("error")
+                                .and_then(|v| v.get("message"))
+                                .and_then(|v| v.as_str())
+                            {
+                                return Err(ProgramError::IoError(std::io::Error::other(format!(
+                                    "importdescriptors failed: {}",
+                                    err
+                                ))));
                             }
                         }
                     }
@@ -288,7 +300,7 @@ impl RpcClient {
                 // getdescriptorinfo failed - try legacy importaddress
             }
         }
-        
+
         // Fall back to importaddress for legacy wallets
         let label_val = label.unwrap_or("");
         let _: serde_json::Value = self.call(
@@ -318,10 +330,7 @@ impl RpcClient {
     pub fn import_blinding_key(&self, address: &str, blinding_key: &str) -> ClientResult<()> {
         let _: serde_json::Value = self.call(
             "importblindingkey",
-            &[
-                serde_json::json!(address),
-                serde_json::json!(blinding_key),
-            ],
+            &[serde_json::json!(address), serde_json::json!(blinding_key)],
         )?;
         Ok(())
     }
@@ -496,7 +505,7 @@ mod tests {
     fn test_rpc_client_from_url() {
         let client = RpcClient::from_url("http://localhost:18884", "user", "pass");
         assert!(client.is_ok());
-        
+
         let client = client.unwrap();
         assert_eq!(client.network(), Network::Regtest);
     }
@@ -505,7 +514,7 @@ mod tests {
     fn test_rpc_client_for_network_regtest() {
         let client = RpcClient::for_network(Network::Regtest, "user", "pass");
         assert!(client.is_ok());
-        
+
         let client = client.unwrap();
         assert_eq!(client.network(), Network::Regtest);
     }
@@ -514,7 +523,7 @@ mod tests {
     fn test_rpc_client_for_network_testnet() {
         let client = RpcClient::for_network(Network::Testnet, "user", "pass");
         assert!(client.is_ok());
-        
+
         let client = client.unwrap();
         assert_eq!(client.network(), Network::Testnet);
     }
@@ -523,7 +532,7 @@ mod tests {
     fn test_rpc_client_for_network_liquid() {
         let client = RpcClient::for_network(Network::Liquid, "user", "pass");
         assert!(client.is_ok());
-        
+
         let client = client.unwrap();
         assert_eq!(client.network(), Network::Liquid);
     }
@@ -582,9 +591,9 @@ password = "testpass"
         let config = NodeConfig::regtest()
             .with_rpc("http://127.0.0.1:12345", "u", "p")
             .with_wallet("test_wallet");
-        
+
         let client = RpcClient::new(config).unwrap();
-        
+
         assert_eq!(client.config().rpc.url, "http://127.0.0.1:12345");
         assert_eq!(client.config().rpc.user, "u");
         assert_eq!(client.config().rpc.wallet, "test_wallet");
@@ -594,13 +603,16 @@ password = "testpass"
     fn test_rpc_client_genesis_hash_from_config() {
         let config = NodeConfig::regtest()
             .with_genesis_hash("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206");
-        
+
         let mut client = RpcClient::new(config).unwrap();
-        
+
         // Should get genesis hash from config without hitting the network
         let hash = client.genesis_hash().unwrap();
-        assert_eq!(hash.to_string(), "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206");
-        
+        assert_eq!(
+            hash.to_string(),
+            "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+        );
+
         // Second call should return cached value
         let hash2 = client.genesis_hash().unwrap();
         assert_eq!(hash, hash2);
@@ -610,7 +622,7 @@ password = "testpass"
     fn test_rpc_client_debug() {
         let config = NodeConfig::regtest();
         let client = RpcClient::new(config).unwrap();
-        
+
         let debug_str = format!("{:?}", client);
         assert!(debug_str.contains("RpcClient"));
         assert!(debug_str.contains("config"));
@@ -618,11 +630,10 @@ password = "testpass"
 
     #[test]
     fn test_rpc_client_with_wallet_url() {
-        let config = NodeConfig::regtest()
-            .with_wallet("custom_wallet");
-        
+        let config = NodeConfig::regtest().with_wallet("custom_wallet");
+
         let client = RpcClient::new(config).unwrap();
-        
+
         // Verify the wallet is set in config
         assert_eq!(client.config().rpc.wallet, "custom_wallet");
         assert!(client.config().rpc.wallet_url().contains("custom_wallet"));
@@ -630,7 +641,7 @@ password = "testpass"
 
     // Note: The following tests require a live Elements node and are marked as ignored.
     // Run them with: cargo test --features rpc -- --ignored
-    
+
     #[test]
     #[ignore = "requires live Elements node"]
     fn test_rpc_client_test_connection() {
@@ -668,7 +679,7 @@ password = "testpass"
     fn test_rpc_client_genesis_hash_from_node() {
         let config = NodeConfig::regtest(); // No genesis_hash set
         let mut client = RpcClient::new(config).unwrap();
-        
+
         // Should fetch from node
         let hash = client.genesis_hash();
         assert!(hash.is_ok());
@@ -696,7 +707,7 @@ password = "testpass"
     fn test_rpc_client_send_to_address() {
         let client = RpcClient::from_url("http://localhost:18884", "user", "pass").unwrap();
         let addr = client.get_new_address().unwrap();
-        
+
         // Need to have funds in the wallet
         let txid = client.send_to_address(&addr, 1_000_000);
         // This may fail if wallet has no funds - just check it runs
@@ -708,7 +719,7 @@ password = "testpass"
     fn test_rpc_client_import_address() {
         let client = RpcClient::from_url("http://localhost:18884", "user", "pass").unwrap();
         let addr = client.get_new_address().unwrap();
-        
+
         let result = client.import_address(&addr.to_string(), Some("test"), false);
         // May succeed or fail depending on wallet type
         let _ = result;

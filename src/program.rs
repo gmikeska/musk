@@ -378,11 +378,17 @@ mod tests {
 
         // Liquid
         let liquid_addr = compiled.address(&elements::AddressParams::LIQUID);
-        assert!(liquid_addr.to_string().starts_with("ex1p") || liquid_addr.to_string().starts_with("lq1p"));
+        assert!(
+            liquid_addr.to_string().starts_with("ex1p")
+                || liquid_addr.to_string().starts_with("lq1p")
+        );
 
         // Testnet
         let testnet_addr = compiled.address(&elements::AddressParams::LIQUID_TESTNET);
-        assert!(testnet_addr.to_string().starts_with("tex1p") || testnet_addr.to_string().starts_with("tlq1p"));
+        assert!(
+            testnet_addr.to_string().starts_with("tex1p")
+                || testnet_addr.to_string().starts_with("tlq1p")
+        );
     }
 
     #[test]
@@ -406,13 +412,13 @@ mod tests {
     fn test_encode_deterministic() {
         let program = Program::from_source("fn main() { assert!(true); }").unwrap();
         let compiled = program.instantiate(Arguments::default()).unwrap();
-        
+
         let satisfied1 = compiled.satisfy(WitnessValues::default()).unwrap();
         let (prog1, wit1) = satisfied1.encode();
-        
+
         let satisfied2 = compiled.satisfy(WitnessValues::default()).unwrap();
         let (prog2, wit2) = satisfied2.encode();
-        
+
         assert_eq!(prog1, prog2);
         assert_eq!(wit1, wit2);
     }
@@ -428,7 +434,7 @@ mod tests {
     fn test_taproot_info() {
         let program = Program::from_source("fn main() { assert!(true); }").unwrap();
         let compiled = program.instantiate(Arguments::default()).unwrap();
-        
+
         let taproot_info = compiled.taproot_info();
         assert_eq!(taproot_info.internal_key().serialize().len(), 32);
         assert!(taproot_info.merkle_root().is_some());
@@ -438,13 +444,13 @@ mod tests {
     fn test_script_version() {
         let program = Program::from_source("fn main() { assert!(true); }").unwrap();
         let compiled = program.instantiate(Arguments::default()).unwrap();
-        
+
         let (script, version) = compiled.script_version();
-        
+
         // Script should be 32 bytes (CMR)
         assert_eq!(script.len(), 32);
         assert_eq!(script.as_bytes(), compiled.cmr().as_ref());
-        
+
         // Version should be Simplicity leaf version
         assert_eq!(version, simplicityhl::simplicity::leaf_version());
     }
@@ -453,7 +459,7 @@ mod tests {
     fn test_inner_access() {
         let program = Program::from_source("fn main() { assert!(true); }").unwrap();
         let compiled = program.instantiate(Arguments::default()).unwrap();
-        
+
         // Should be able to access inner CompiledProgram
         let inner = compiled.inner();
         assert!(std::mem::size_of_val(inner) > 0);
@@ -464,7 +470,7 @@ mod tests {
         let program = Program::from_source("fn main() { assert!(true); }").unwrap();
         let compiled = program.instantiate(Arguments::default()).unwrap();
         let satisfied = compiled.satisfy(WitnessValues::default()).unwrap();
-        
+
         // Should be able to access inner SatisfiedProgram
         let inner = satisfied.inner();
         assert!(std::mem::size_of_val(inner) > 0);
@@ -475,19 +481,22 @@ mod tests {
         let program = Program::from_source("fn main() { assert!(true); }").unwrap();
         let compiled = program.instantiate(Arguments::default()).unwrap();
         let satisfied = compiled.satisfy(WitnessValues::default()).unwrap();
-        
+
         // Satisfied program should have same taproot info
         let taproot_info = satisfied.taproot_info();
-        assert_eq!(taproot_info.internal_key(), compiled.taproot_info().internal_key());
+        assert_eq!(
+            taproot_info.internal_key(),
+            compiled.taproot_info().internal_key()
+        );
     }
 
     #[test]
     fn test_instantiated_program_clone() {
         let program = Program::from_source("fn main() { assert!(true); }").unwrap();
         let compiled = program.instantiate(Arguments::default()).unwrap();
-        
+
         let cloned = compiled.clone();
-        
+
         assert_eq!(compiled.cmr(), cloned.cmr());
         assert_eq!(
             compiled.address(&elements::AddressParams::ELEMENTS),

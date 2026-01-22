@@ -102,7 +102,7 @@ impl Default for RpcConfig {
 
 impl RpcConfig {
     /// Get the RPC URL with wallet path appended
-    /// 
+    ///
     /// Elements RPC uses `/wallet/<name>` for wallet-specific operations
     #[must_use]
     pub fn wallet_url(&self) -> String {
@@ -326,11 +326,17 @@ mod tests {
     #[test]
     fn test_wallet_url() {
         let config = NodeConfig::default();
-        assert_eq!(config.rpc.wallet_url(), "http://127.0.0.1:18884/wallet/musk");
+        assert_eq!(
+            config.rpc.wallet_url(),
+            "http://127.0.0.1:18884/wallet/musk"
+        );
 
         let mut custom_config = NodeConfig::default();
         custom_config.rpc.wallet = "samplicity".to_string();
-        assert_eq!(custom_config.rpc.wallet_url(), "http://127.0.0.1:18884/wallet/samplicity");
+        assert_eq!(
+            custom_config.rpc.wallet_url(),
+            "http://127.0.0.1:18884/wallet/samplicity"
+        );
     }
 
     #[test]
@@ -338,7 +344,10 @@ mod tests {
         let mut config = NodeConfig::default();
         config.rpc.url = "http://127.0.0.1:18884/".to_string();
         // Should handle trailing slash gracefully
-        assert_eq!(config.rpc.wallet_url(), "http://127.0.0.1:18884/wallet/musk");
+        assert_eq!(
+            config.rpc.wallet_url(),
+            "http://127.0.0.1:18884/wallet/musk"
+        );
     }
 
     #[test]
@@ -377,7 +386,10 @@ password = "elementspass"
 "#;
         let config = NodeConfig::from_toml(toml_str).unwrap();
         assert_eq!(config.rpc.wallet, "samplicity");
-        assert_eq!(config.rpc.wallet_url(), "http://localhost:18891/wallet/samplicity");
+        assert_eq!(
+            config.rpc.wallet_url(),
+            "http://localhost:18891/wallet/samplicity"
+        );
     }
 
     #[test]
@@ -481,19 +493,18 @@ password = "pass"
     fn test_node_config_set_network() {
         let mut config = NodeConfig::regtest();
         assert_eq!(config.network(), Network::Regtest);
-        
+
         config.set_network(Network::Testnet);
         assert_eq!(config.network(), Network::Testnet);
-        
+
         config.set_network(Network::Liquid);
         assert_eq!(config.network(), Network::Liquid);
     }
 
     #[test]
     fn test_node_config_with_rpc() {
-        let config = NodeConfig::regtest()
-            .with_rpc("http://custom:1234", "myuser", "mypass");
-        
+        let config = NodeConfig::regtest().with_rpc("http://custom:1234", "myuser", "mypass");
+
         assert_eq!(config.rpc.url, "http://custom:1234");
         assert_eq!(config.rpc.user, "myuser");
         assert_eq!(config.rpc.password, "mypass");
@@ -503,9 +514,8 @@ password = "pass"
 
     #[test]
     fn test_node_config_with_wallet() {
-        let config = NodeConfig::regtest()
-            .with_wallet("custom_wallet");
-        
+        let config = NodeConfig::regtest().with_wallet("custom_wallet");
+
         assert_eq!(config.rpc.wallet, "custom_wallet");
     }
 
@@ -513,7 +523,7 @@ password = "pass"
     fn test_node_config_with_genesis_hash() {
         let config = NodeConfig::regtest()
             .with_genesis_hash("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206");
-        
+
         assert_eq!(
             config.chain.genesis_hash,
             Some("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206".to_string())
@@ -525,16 +535,21 @@ password = "pass"
         let config = NodeConfig::regtest();
         let result = config.genesis_hash();
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ConfigError::MissingGenesisHash));
+        assert!(matches!(
+            result.unwrap_err(),
+            ConfigError::MissingGenesisHash
+        ));
     }
 
     #[test]
     fn test_node_config_genesis_hash_invalid() {
-        let config = NodeConfig::regtest()
-            .with_genesis_hash("not_a_valid_hash");
+        let config = NodeConfig::regtest().with_genesis_hash("not_a_valid_hash");
         let result = config.genesis_hash();
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ConfigError::InvalidGenesisHash(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            ConfigError::InvalidGenesisHash(_)
+        ));
     }
 
     #[test]
@@ -542,7 +557,10 @@ password = "pass"
         let config = NodeConfig::regtest()
             .with_genesis_hash("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206");
         let hash = config.genesis_hash().unwrap();
-        assert_eq!(hash.to_string(), "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206");
+        assert_eq!(
+            hash.to_string(),
+            "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+        );
     }
 
     #[test]
@@ -552,8 +570,14 @@ password = "pass"
         let liquid = NodeConfig::liquid();
 
         // Verify each config returns different address params
-        assert_ne!(regtest.address_params().bech_hrp, testnet.address_params().bech_hrp);
-        assert_ne!(testnet.address_params().bech_hrp, liquid.address_params().bech_hrp);
+        assert_ne!(
+            regtest.address_params().bech_hrp,
+            testnet.address_params().bech_hrp
+        );
+        assert_ne!(
+            testnet.address_params().bech_hrp,
+            liquid.address_params().bech_hrp
+        );
     }
 
     #[test]
@@ -562,9 +586,9 @@ password = "pass"
             .with_rpc("http://localhost:18884", "testuser", "testpass")
             .with_wallet("test_wallet")
             .with_genesis_hash("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206");
-        
+
         let toml_str = config.to_toml().unwrap();
-        
+
         // Parse it back
         let parsed = NodeConfig::from_toml(&toml_str).unwrap();
         assert_eq!(parsed.network(), Network::Regtest);
@@ -595,7 +619,7 @@ genesis_hash = "abc123"
 "#;
         let mut temp_file = NamedTempFile::new().unwrap();
         temp_file.write_all(toml_content.as_bytes()).unwrap();
-        
+
         let config = NodeConfig::from_file(temp_file.path()).unwrap();
         assert_eq!(config.network(), Network::Testnet);
         assert_eq!(config.rpc.user, "fileuser");
@@ -611,12 +635,12 @@ genesis_hash = "abc123"
 
     #[test]
     fn test_node_config_save() {
-        let config = NodeConfig::testnet()
-            .with_rpc("http://localhost:18892", "saveuser", "savepass");
-        
+        let config =
+            NodeConfig::testnet().with_rpc("http://localhost:18892", "saveuser", "savepass");
+
         let temp_file = NamedTempFile::new().unwrap();
         config.save(temp_file.path()).unwrap();
-        
+
         // Read back
         let loaded = NodeConfig::from_file(temp_file.path()).unwrap();
         assert_eq!(loaded.network(), Network::Testnet);
@@ -648,7 +672,7 @@ genesis_hash = "abc123"
             .with_rpc("http://custom:1234", "u", "p")
             .with_wallet("w")
             .with_genesis_hash("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206");
-        
+
         assert_eq!(config.rpc.url, "http://custom:1234");
         assert_eq!(config.rpc.user, "u");
         assert_eq!(config.rpc.password, "p");

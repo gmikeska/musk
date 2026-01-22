@@ -104,7 +104,10 @@ mod tests {
         assert_eq!(utxo.txid, Txid::from_byte_array([0u8; 32]));
         assert_eq!(utxo.vout, 0);
         assert_eq!(utxo.amount, 100_000_000);
-        assert_eq!(utxo.script_pubkey, elements::Script::from(vec![0x00, 0x14, 0xab]));
+        assert_eq!(
+            utxo.script_pubkey,
+            elements::Script::from(vec![0x00, 0x14, 0xab])
+        );
     }
 
     #[test]
