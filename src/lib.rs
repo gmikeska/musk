@@ -58,10 +58,10 @@ mod mock_client;
 mod test_fixtures;
 
 // Re-export core types
-pub use client::NodeClient;
+pub use client::{NodeClient, Utxo};
 pub use error::{ProgramError, SpendError};
 pub use program::{AddressType, InstantiatedProgram, Program, SatisfiedProgram};
-pub use spend::SpendBuilder;
+pub use spend::{BlindingParams, SpendBuilder};
 
 // Re-export config and RPC client when feature is enabled
 #[cfg(feature = "rpc")]

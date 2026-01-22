@@ -4,12 +4,27 @@ use crate::client::Utxo;
 use crate::error::SpendError;
 use crate::program::{InstantiatedProgram, SatisfiedProgram};
 use elements::hashes::Hash;
+use elements::hex::ToHex;
+use elements::issuance::AssetId;
 use elements::{
     confidential, AssetIssuance, LockTime, Script, Sequence, Transaction, TxIn, TxInWitness, TxOut,
     TxOutWitness,
 };
 use simplicityhl::simplicity::jet::elements::{ElementsEnv, ElementsUtxo};
 use simplicityhl::WitnessValues;
+
+/// Parameters needed to blind a transaction via rawblindrawtransaction RPC
+#[derive(Debug, Clone)]
+pub struct BlindingParams {
+    /// Amount blinding factors for each input (hex strings)
+    pub input_amount_blinders: Vec<String>,
+    /// Unblinded amounts for each input in satoshis
+    pub input_amounts: Vec<u64>,
+    /// Asset IDs for each input (hex strings)
+    pub input_assets: Vec<String>,
+    /// Asset blinding factors for each input (hex strings)
+    pub input_asset_blinders: Vec<String>,
+}
 
 /// Builder for constructing spending transactions
 pub struct SpendBuilder {
@@ -53,7 +68,7 @@ impl SpendBuilder {
         &mut self,
         script_pubkey: Script,
         amount: u64,
-        asset: elements::AssetId,
+        asset: AssetId,
     ) -> &mut Self {
         self.outputs.push(TxOut {
             value: confidential::Value::Explicit(amount),
@@ -66,9 +81,86 @@ impl SpendBuilder {
     }
 
     /// Add a fee output
-    pub fn add_fee(&mut self, amount: u64, asset: elements::AssetId) -> &mut Self {
+    pub fn add_fee(&mut self, amount: u64, asset: AssetId) -> &mut Self {
         self.outputs.push(TxOut::new_fee(amount, asset));
         self
+    }
+
+    /// Add a confidential output (amount will be blinded by rawblindrawtransaction)
+    ///
+    /// The output is constructed with explicit values initially; blinding happens
+    /// via the `rawblindrawtransaction` RPC after the transaction is built.
+    ///
+    /// # Arguments
+    ///
+    /// * `script_pubkey` - The destination script (should be from a confidential address)
+    /// * `amount` - The explicit amount in satoshis
+    /// * `asset` - The asset ID
+    /// * `nonce` - The blinding pubkey nonce (from the confidential address)
+    pub fn add_confidential_output(
+        &mut self,
+        script_pubkey: Script,
+        amount: u64,
+        asset: AssetId,
+        nonce: confidential::Nonce,
+    ) -> &mut Self {
+        self.outputs.push(TxOut {
+            value: confidential::Value::Explicit(amount),
+            script_pubkey,
+            asset: confidential::Asset::Explicit(asset),
+            nonce,
+            witness: TxOutWitness::empty(),
+        });
+        self
+    }
+
+    /// Check if this transaction needs blinding
+    ///
+    /// Returns true if any output has a non-null nonce (indicating a confidential address)
+    #[must_use]
+    pub fn needs_blinding(&self) -> bool {
+        self.outputs.iter().any(|o| !o.nonce.is_null())
+    }
+
+    /// Check if the input UTXO is confidential
+    ///
+    /// Returns true if the UTXO has non-zero blinding factors
+    #[must_use]
+    pub fn has_confidential_input(&self) -> bool {
+        self.utxo.is_confidential()
+    }
+
+    /// Get the blinding parameters needed for rawblindrawtransaction RPC
+    ///
+    /// This returns the input blinding factors, amounts, and assets that are
+    /// required when calling the Elements rawblindrawtransaction RPC.
+    #[must_use]
+    pub fn get_blinding_params(&self) -> BlindingParams {
+        let confidential::Asset::Explicit(asset_id) = self.utxo.asset else {
+            // Should not happen if validation is done, but provide fallback
+            return BlindingParams {
+                input_amount_blinders: vec!["0".repeat(64)],
+                input_amounts: vec![self.utxo.amount],
+                input_assets: vec!["0".repeat(64)],
+                input_asset_blinders: vec!["0".repeat(64)],
+            };
+        };
+
+        BlindingParams {
+            input_amount_blinders: vec![self.utxo.amount_blinder_hex()],
+            input_amounts: vec![self.utxo.amount],
+            input_assets: vec![asset_id.to_hex()],
+            input_asset_blinders: vec![self.utxo.asset_blinder_hex()],
+        }
+    }
+
+    /// Build the unsigned transaction (public for blinding flow)
+    ///
+    /// Returns the transaction before witness data is added.
+    /// Used when the transaction needs to be blinded via RPC before signing.
+    #[must_use]
+    pub fn build_unsigned(&self) -> Transaction {
+        self.build_unsigned_tx()
     }
 
     /// Set the lock time
@@ -87,17 +179,44 @@ impl SpendBuilder {
 
     /// Compute the `sighash_all` for this transaction
     ///
-    /// This is used to generate witness values that include signatures
+    /// This is used to generate witness values that include signatures.
+    /// For confidential inputs, this uses the committed values (not explicit) in the sighash.
     ///
     /// # Errors
     ///
     /// Returns an error if the control block cannot be found.
     pub fn sighash_all(&self) -> Result<[u8; 32], SpendError> {
         let tx = self.build_unsigned_tx();
+        
+        // For sighash computation, we need to use the on-chain representation
+        // For confidential inputs, we need to use committed values
+        let value = if self.utxo.is_confidential() {
+            // Use the commitment from the UTXO (how it appears on-chain)
+            if let Some(commitment) = &self.utxo.amount_commitment {
+                confidential::Value::from_commitment(commitment)
+                    .unwrap_or(confidential::Value::Explicit(self.utxo.amount))
+            } else {
+                confidential::Value::Explicit(self.utxo.amount)
+            }
+        } else {
+            confidential::Value::Explicit(self.utxo.amount)
+        };
+
+        let asset = if self.utxo.is_confidential() {
+            if let Some(commitment) = &self.utxo.asset_commitment {
+                confidential::Asset::from_commitment(commitment)
+                    .unwrap_or(self.utxo.asset)
+            } else {
+                self.utxo.asset
+            }
+        } else {
+            self.utxo.asset
+        };
+        
         let utxo = ElementsUtxo {
             script_pubkey: self.utxo.script_pubkey.clone(),
-            value: confidential::Value::Explicit(self.utxo.amount),
-            asset: self.utxo.asset,
+            value,
+            asset,
         };
 
         let (script, _version) = self.program.script_version();
@@ -109,6 +228,69 @@ impl SpendBuilder {
 
         let env = ElementsEnv::new(
             &tx,
+            vec![utxo],
+            0,
+            self.program.cmr(),
+            control_block,
+            None,
+            self.genesis_hash,
+        );
+
+        Ok(*env.c_tx_env().sighash_all().as_byte_array())
+    }
+
+    /// Compute the `sighash_all` for a blinded transaction
+    ///
+    /// When a transaction has been blinded by rawblindrawtransaction, the sighash
+    /// must be computed from the blinded transaction (not the original unsigned one).
+    ///
+    /// # Arguments
+    ///
+    /// * `blinded_tx` - The transaction after blinding via rawblindrawtransaction
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the control block cannot be found.
+    pub fn sighash_all_for_blinded(&self, blinded_tx: &Transaction) -> Result<[u8; 32], SpendError> {
+        // For sighash computation with a blinded transaction, we need to use
+        // the committed values from the input UTXO as it appears on-chain
+        let value = if self.utxo.is_confidential() {
+            if let Some(commitment) = &self.utxo.amount_commitment {
+                confidential::Value::from_commitment(commitment)
+                    .unwrap_or(confidential::Value::Explicit(self.utxo.amount))
+            } else {
+                confidential::Value::Explicit(self.utxo.amount)
+            }
+        } else {
+            confidential::Value::Explicit(self.utxo.amount)
+        };
+
+        let asset = if self.utxo.is_confidential() {
+            if let Some(commitment) = &self.utxo.asset_commitment {
+                confidential::Asset::from_commitment(commitment)
+                    .unwrap_or(self.utxo.asset)
+            } else {
+                self.utxo.asset
+            }
+        } else {
+            self.utxo.asset
+        };
+
+        let utxo = ElementsUtxo {
+            script_pubkey: self.utxo.script_pubkey.clone(),
+            value,
+            asset,
+        };
+
+        let (script, _version) = self.program.script_version();
+        let control_block = self
+            .program
+            .taproot_info()
+            .control_block(&(script, self.program.script_version().1))
+            .ok_or_else(|| SpendError::BuildError("Control block not found".into()))?;
+
+        let env = ElementsEnv::new(
+            blinded_tx,
             vec![utxo],
             0,
             self.program.cmr(),
@@ -192,6 +374,54 @@ impl SpendBuilder {
             output: self.outputs,
         })
     }
+
+    /// Finalize a blinded transaction with a pre-satisfied program
+    ///
+    /// This is used when the transaction was blinded via rawblindrawtransaction.
+    /// It applies the witness data to the already-blinded transaction.
+    ///
+    /// # Arguments
+    ///
+    /// * `blinded_tx` - The transaction after blinding via rawblindrawtransaction
+    /// * `satisfied` - The satisfied program containing witness data
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the control block cannot be found.
+    pub fn finalize_blinded(
+        &self,
+        blinded_tx: Transaction,
+        satisfied: &SatisfiedProgram,
+    ) -> Result<Transaction, SpendError> {
+        let (script, version) = self.program.script_version();
+        let control_block = satisfied
+            .taproot_info()
+            .control_block(&(script.clone(), version))
+            .ok_or_else(|| SpendError::BuildError("Control block not found".into()))?;
+
+        let (program_bytes, witness_bytes) = satisfied.encode();
+
+        // Build the input witness stack for Simplicity/Taproot
+        let input_witness = TxInWitness {
+            amount_rangeproof: None,
+            inflation_keys_rangeproof: None,
+            script_witness: vec![
+                witness_bytes,
+                program_bytes,
+                script.into_bytes(),
+                control_block.serialize(),
+            ],
+            pegin_witness: vec![],
+        };
+
+        // Apply witness to the blinded transaction
+        let mut tx = blinded_tx;
+        if let Some(input) = tx.input.get_mut(0) {
+            input.witness = input_witness;
+        }
+
+        Ok(tx)
+    }
 }
 
 /// Helper to create a simple spending transaction
@@ -242,6 +472,10 @@ mod tests {
             asset: confidential::Asset::Explicit(
                 AssetId::from_slice(&[0u8; 32]).expect("valid asset"),
             ),
+            amount_blinder: None,
+            asset_blinder: None,
+            amount_commitment: None,
+            asset_commitment: None,
         }
     }
 
@@ -448,6 +682,10 @@ mod tests {
             asset: confidential::Asset::Explicit(
                 AssetId::from_slice(&[0u8; 32]).expect("valid asset"),
             ),
+            amount_blinder: None,
+            asset_blinder: None,
+            amount_commitment: None,
+            asset_commitment: None,
         };
 
         let genesis = test_genesis_hash();
@@ -479,6 +717,10 @@ mod tests {
             amount: 100_000_000,
             script_pubkey: Script::new(),
             asset: confidential::Asset::Null, // Non-explicit
+            amount_blinder: None,
+            asset_blinder: None,
+            amount_commitment: None,
+            asset_commitment: None,
         };
 
         let genesis = test_genesis_hash();

@@ -32,6 +32,36 @@ use crate::error::ProgramError;
 use elements::{encode::deserialize, hex::FromHex, Address, BlockHash, Transaction, Txid};
 use std::str::FromStr;
 
+/// Parse a 32-byte blinder from hex string (amountblinder, assetblinder)
+/// Returns None if the string is missing, invalid, or all zeros
+fn parse_blinder_32(hex_str: Option<&str>) -> Option<[u8; 32]> {
+    let hex = hex_str?;
+    let bytes = Vec::<u8>::from_hex(hex).ok()?;
+    if bytes.len() != 32 {
+        return None;
+    }
+    let mut arr = [0u8; 32];
+    arr.copy_from_slice(&bytes);
+    // Return None if all zeros (indicates explicit/unblinded)
+    if arr.iter().all(|&b| b == 0) {
+        return None;
+    }
+    Some(arr)
+}
+
+/// Parse a 33-byte commitment from hex string (amountcommitment, assetcommitment)
+/// Returns None if the string is missing or invalid
+fn parse_commitment_33(hex_str: Option<&str>) -> Option<[u8; 33]> {
+    let hex = hex_str?;
+    let bytes = Vec::<u8>::from_hex(hex).ok()?;
+    if bytes.len() != 33 {
+        return None;
+    }
+    let mut arr = [0u8; 33];
+    arr.copy_from_slice(&bytes);
+    Some(arr)
+}
+
 /// RPC client for Elements/Liquid nodes
 ///
 /// This implementation uses JSON-RPC to communicate with Elements nodes.
@@ -374,6 +404,100 @@ impl RpcClient {
         Ok(())
     }
 
+    /// Blind a raw transaction using Elements RPC
+    ///
+    /// This calls the `rawblindrawtransaction` RPC to blind outputs going to
+    /// confidential addresses. The input blinding factors must be provided
+    /// for confidential inputs.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx_hex` - The hex-encoded unsigned transaction
+    /// * `input_amount_blinders` - Amount blinding factors for each input (32-byte hex strings, "0"*64 for explicit)
+    /// * `input_amounts` - Unblinded amounts for each input in satoshis
+    /// * `input_assets` - Asset IDs for each input (32-byte hex strings)
+    /// * `input_asset_blinders` - Asset blinding factors for each input (32-byte hex strings, "0"*64 for explicit)
+    ///
+    /// # Returns
+    ///
+    /// Returns the hex-encoded blinded transaction
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the RPC call fails or blinding fails.
+    pub fn blind_raw_transaction(
+        &self,
+        tx_hex: &str,
+        input_amount_blinders: &[String],
+        input_amounts: &[u64],
+        input_assets: &[String],
+        input_asset_blinders: &[String],
+    ) -> ClientResult<String> {
+        // Convert amounts to BTC (f64) as expected by the RPC
+        let amounts_btc: Vec<f64> = input_amounts.iter().map(|&sat| sat as f64 / 100_000_000.0).collect();
+        
+        let result: String = self.call(
+            "rawblindrawtransaction",
+            &[
+                serde_json::json!(tx_hex),
+                serde_json::json!(input_amount_blinders),
+                serde_json::json!(amounts_btc),
+                serde_json::json!(input_assets),
+                serde_json::json!(input_asset_blinders),
+            ],
+        )?;
+        Ok(result)
+    }
+
+    /// Blind a Transaction object and return the blinded Transaction
+    ///
+    /// Convenience method that handles serialization/deserialization.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx` - The unsigned transaction to blind
+    /// * `input_amount_blinders` - Amount blinding factors for each input
+    /// * `input_amounts` - Unblinded amounts for each input in satoshis  
+    /// * `input_assets` - Asset IDs for each input
+    /// * `input_asset_blinders` - Asset blinding factors for each input
+    ///
+    /// # Returns
+    ///
+    /// Returns the blinded Transaction object
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization, RPC call, or deserialization fails.
+    pub fn blind_transaction(
+        &self,
+        tx: &Transaction,
+        input_amount_blinders: &[String],
+        input_amounts: &[u64],
+        input_assets: &[String],
+        input_asset_blinders: &[String],
+    ) -> ClientResult<Transaction> {
+        use elements::encode::serialize_hex;
+        
+        let tx_hex = serialize_hex(tx);
+        let blinded_hex = self.blind_raw_transaction(
+            &tx_hex,
+            input_amount_blinders,
+            input_amounts,
+            input_assets,
+            input_asset_blinders,
+        )?;
+        
+        let blinded_bytes = Vec::<u8>::from_hex(&blinded_hex).map_err(|e| {
+            ProgramError::IoError(std::io::Error::other(format!("Invalid blinded tx hex: {e}")))
+        })?;
+        
+        let blinded_tx: Transaction = deserialize(&blinded_bytes).map_err(|e| {
+            ProgramError::IoError(std::io::Error::other(format!("Failed to deserialize blinded tx: {e}")))
+        })?;
+        
+        Ok(blinded_tx)
+    }
+
     /// Decode a raw transaction
     ///
     /// Returns detailed information about a serialized transaction.
@@ -562,12 +686,23 @@ impl NodeClient for RpcClient {
                 elements::confidential::Asset::Null
             };
 
+            // Parse blinding data from listunspent response
+            // These are available when blinding key is imported to the wallet
+            let amount_blinder = parse_blinder_32(item.get("amountblinder").and_then(|v| v.as_str()));
+            let asset_blinder = parse_blinder_32(item.get("assetblinder").and_then(|v| v.as_str()));
+            let amount_commitment = parse_commitment_33(item.get("amountcommitment").and_then(|v| v.as_str()));
+            let asset_commitment = parse_commitment_33(item.get("assetcommitment").and_then(|v| v.as_str()));
+
             utxos.push(Utxo {
                 txid,
                 vout,
                 amount,
                 script_pubkey,
                 asset,
+                amount_blinder,
+                asset_blinder,
+                amount_commitment,
+                asset_commitment,
             });
         }
 

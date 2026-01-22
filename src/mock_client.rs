@@ -115,6 +115,10 @@ impl NodeClient for MockClient {
             asset: confidential::Asset::Explicit(
                 AssetId::from_slice(&[0u8; 32]).expect("valid asset"),
             ),
+            amount_blinder: None,
+            asset_blinder: None,
+            amount_commitment: None,
+            asset_commitment: None,
         });
 
         Ok(txid)
