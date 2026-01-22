@@ -492,7 +492,7 @@ impl NodeClient for RpcClient {
                     ProgramError::IoError(std::io::Error::other("Missing amount in listunspent"))
                 })?;
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let amount = (amount_btc * 100_000_000.0) as u64;
+            let amount = (amount_btc * 100_000_000.0).round() as u64;
 
             let script_hex = item
                 .get("scriptPubKey")
