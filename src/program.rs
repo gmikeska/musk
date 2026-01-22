@@ -3,9 +3,20 @@
 use crate::address::create_taproot_info;
 use crate::error::ProgramError;
 use elements::taproot::TaprootSpendInfo;
+use secp256k1::PublicKey;
 use simplicityhl::{Arguments, CompiledProgram, Parameters, TemplateProgram, WitnessValues};
 use std::path::Path;
 use std::sync::Arc;
+
+/// Address type for Simplicity programs
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AddressType {
+    /// Explicit address - amounts and assets are visible on-chain
+    #[default]
+    Explicit,
+    /// Confidential address - amounts and assets are blinded
+    Confidential,
+}
 
 /// A Simplicity program template with parameterized values
 pub struct Program {
@@ -139,7 +150,7 @@ impl InstantiatedProgram {
         self.inner.commit().cmr()
     }
 
-    /// Generate a taproot address for this program
+    /// Generate an explicit taproot address for this program (no blinding)
     ///
     /// # Examples
     ///
@@ -159,6 +170,61 @@ impl InstantiatedProgram {
             self.taproot_info.internal_key(),
             self.taproot_info.merkle_root(),
             blinder,
+            params,
+        )
+    }
+
+    /// Generate a confidential taproot address for this program
+    ///
+    /// A confidential address includes a blinding public key that enables
+    /// confidential transactions where amounts and asset IDs are encrypted.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use musk::{Program, Arguments, elements};
+    /// use secp256k1::{Secp256k1, SecretKey, PublicKey};
+    ///
+    /// let program = Program::from_source("fn main() { assert!(true); }").unwrap();
+    /// let compiled = program.instantiate(Arguments::default()).unwrap();
+    ///
+    /// // Generate a blinding keypair
+    /// let secp = Secp256k1::new();
+    /// let blinding_sk = SecretKey::from_slice(&[1u8; 32]).unwrap();
+    /// let blinding_pk = PublicKey::from_secret_key(&secp, &blinding_sk);
+    ///
+    /// let address = compiled.confidential_address(&elements::AddressParams::ELEMENTS, blinding_pk);
+    /// // Confidential addresses have a different prefix
+    /// ```
+    #[must_use]
+    pub fn confidential_address(
+        &self,
+        params: &'static elements::AddressParams,
+        blinding_key: PublicKey,
+    ) -> elements::Address {
+        elements::Address::p2tr(
+            &secp256k1::Secp256k1::new(),
+            self.taproot_info.internal_key(),
+            self.taproot_info.merkle_root(),
+            Some(blinding_key),
+            params,
+        )
+    }
+
+    /// Generate a taproot address with an optional blinding key
+    ///
+    /// This is a convenience method that handles both explicit and confidential addresses.
+    #[must_use]
+    pub fn address_with_blinder(
+        &self,
+        params: &'static elements::AddressParams,
+        blinding_key: Option<PublicKey>,
+    ) -> elements::Address {
+        elements::Address::p2tr(
+            &secp256k1::Secp256k1::new(),
+            self.taproot_info.internal_key(),
+            self.taproot_info.merkle_root(),
+            blinding_key,
             params,
         )
     }

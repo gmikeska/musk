@@ -328,6 +328,74 @@ impl RpcClient {
         )?;
         Ok(())
     }
+
+    /// Decode a raw transaction
+    ///
+    /// Returns detailed information about a serialized transaction.
+    /// Useful for verifying transaction structure before broadcasting.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx_hex` - The hex-encoded raw transaction
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the RPC call fails or the transaction is invalid.
+    pub fn decode_raw_transaction(&self, tx_hex: &str) -> ClientResult<serde_json::Value> {
+        self.call("decoderawtransaction", &[serde_json::json!(tx_hex)])
+    }
+
+    /// Test whether a transaction would be accepted to the mempool
+    ///
+    /// This performs validation without actually submitting the transaction.
+    /// Useful for testing that a transaction is valid before attempting to broadcast.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx_hex` - The hex-encoded raw transaction
+    ///
+    /// # Returns
+    ///
+    /// Returns a JSON value containing `allowed` (bool) and optionally `reject-reason`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the RPC call fails.
+    pub fn test_mempool_accept(&self, tx_hex: &str) -> ClientResult<Vec<serde_json::Value>> {
+        self.call(
+            "testmempoolaccept",
+            &[serde_json::json!([tx_hex])],
+        )
+    }
+
+    /// Decode a raw transaction directly from a Transaction object
+    ///
+    /// Convenience method that serializes the transaction and decodes it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization or RPC call fails.
+    pub fn decode_transaction(&self, tx: &Transaction) -> ClientResult<serde_json::Value> {
+        use elements::encode::serialize_hex;
+        let tx_hex = serialize_hex(tx);
+        self.decode_raw_transaction(&tx_hex)
+    }
+
+    /// Test whether a Transaction would be accepted to the mempool
+    ///
+    /// Convenience method that serializes the transaction and tests it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization or RPC call fails.
+    pub fn test_transaction_mempool_accept(
+        &self,
+        tx: &Transaction,
+    ) -> ClientResult<Vec<serde_json::Value>> {
+        use elements::encode::serialize_hex;
+        let tx_hex = serialize_hex(tx);
+        self.test_mempool_accept(&tx_hex)
+    }
 }
 
 impl NodeClient for RpcClient {

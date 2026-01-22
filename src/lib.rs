@@ -60,7 +60,7 @@ mod test_fixtures;
 // Re-export core types
 pub use client::NodeClient;
 pub use error::{ProgramError, SpendError};
-pub use program::{InstantiatedProgram, Program, SatisfiedProgram};
+pub use program::{AddressType, InstantiatedProgram, Program, SatisfiedProgram};
 pub use spend::SpendBuilder;
 
 // Re-export config and RPC client when feature is enabled
