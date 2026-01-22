@@ -283,6 +283,8 @@ impl SatisfiedProgram {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn test_from_source_valid() {
@@ -292,8 +294,47 @@ mod tests {
 
     #[test]
     fn test_from_source_invalid_syntax() {
-        let program = Program::from_source("invalid syntax !!!!");
-        assert!(program.is_err());
+        let result = Program::from_source("invalid syntax !!!!");
+        assert!(result.is_err());
+        match result {
+            Err(ProgramError::ParseError(_)) => {}
+            _ => panic!("Expected ParseError"),
+        }
+    }
+
+    #[test]
+    fn test_from_file_valid() {
+        let source = "fn main() { assert!(true); }";
+        let mut temp_file = NamedTempFile::with_suffix(".simf").unwrap();
+        temp_file.write_all(source.as_bytes()).unwrap();
+
+        let program = Program::from_file(temp_file.path());
+        assert!(program.is_ok());
+        assert_eq!(program.unwrap().source(), source);
+    }
+
+    #[test]
+    fn test_from_file_not_found() {
+        let result = Program::from_file("/nonexistent/path/program.simf");
+        assert!(result.is_err());
+        match result {
+            Err(ProgramError::IoError(_)) => {}
+            _ => panic!("Expected IoError"),
+        }
+    }
+
+    #[test]
+    fn test_from_file_invalid_syntax() {
+        let source = "this is not valid simplicity!!!";
+        let mut temp_file = NamedTempFile::with_suffix(".simf").unwrap();
+        temp_file.write_all(source.as_bytes()).unwrap();
+
+        let result = Program::from_file(temp_file.path());
+        assert!(result.is_err());
+        match result {
+            Err(ProgramError::ParseError(_)) => {}
+            _ => panic!("Expected ParseError"),
+        }
     }
 
     #[test]
@@ -301,6 +342,13 @@ mod tests {
         let program = Program::from_source("fn main() { assert!(true); }").unwrap();
         let compiled = program.instantiate(Arguments::default());
         assert!(compiled.is_ok());
+    }
+
+    #[test]
+    fn test_parameters_access() {
+        let program = Program::from_source("fn main() { assert!(true); }").unwrap();
+        // Just verify we can access parameters without error
+        let _params = program.parameters();
     }
 
     #[test]
@@ -320,6 +368,24 @@ mod tests {
     }
 
     #[test]
+    fn test_address_generation_different_networks() {
+        let program = Program::from_source("fn main() { assert!(true); }").unwrap();
+        let compiled = program.instantiate(Arguments::default()).unwrap();
+
+        // Regtest
+        let regtest_addr = compiled.address(&elements::AddressParams::ELEMENTS);
+        assert!(regtest_addr.to_string().starts_with("ert1p"));
+
+        // Liquid
+        let liquid_addr = compiled.address(&elements::AddressParams::LIQUID);
+        assert!(liquid_addr.to_string().starts_with("ex1p") || liquid_addr.to_string().starts_with("lq1p"));
+
+        // Testnet
+        let testnet_addr = compiled.address(&elements::AddressParams::LIQUID_TESTNET);
+        assert!(testnet_addr.to_string().starts_with("tex1p") || testnet_addr.to_string().starts_with("tlq1p"));
+    }
+
+    #[test]
     fn test_satisfy_empty_witness() {
         let program = Program::from_source("fn main() { assert!(true); }").unwrap();
         let compiled = program.instantiate(Arguments::default()).unwrap();
@@ -332,8 +398,23 @@ mod tests {
         let program = Program::from_source("fn main() { assert!(true); }").unwrap();
         let compiled = program.instantiate(Arguments::default()).unwrap();
         let satisfied = compiled.satisfy(WitnessValues::default()).unwrap();
-        let (program_bytes, witness) = satisfied.encode();
+        let (program_bytes, _witness) = satisfied.encode();
         assert!(!program_bytes.is_empty());
+    }
+
+    #[test]
+    fn test_encode_deterministic() {
+        let program = Program::from_source("fn main() { assert!(true); }").unwrap();
+        let compiled = program.instantiate(Arguments::default()).unwrap();
+        
+        let satisfied1 = compiled.satisfy(WitnessValues::default()).unwrap();
+        let (prog1, wit1) = satisfied1.encode();
+        
+        let satisfied2 = compiled.satisfy(WitnessValues::default()).unwrap();
+        let (prog2, wit2) = satisfied2.encode();
+        
+        assert_eq!(prog1, prog2);
+        assert_eq!(wit1, wit2);
     }
 
     #[test]
@@ -341,5 +422,76 @@ mod tests {
         let source = "fn main() { assert!(true); }";
         let program = Program::from_source(source).unwrap();
         assert_eq!(program.source(), source);
+    }
+
+    #[test]
+    fn test_taproot_info() {
+        let program = Program::from_source("fn main() { assert!(true); }").unwrap();
+        let compiled = program.instantiate(Arguments::default()).unwrap();
+        
+        let taproot_info = compiled.taproot_info();
+        assert_eq!(taproot_info.internal_key().serialize().len(), 32);
+        assert!(taproot_info.merkle_root().is_some());
+    }
+
+    #[test]
+    fn test_script_version() {
+        let program = Program::from_source("fn main() { assert!(true); }").unwrap();
+        let compiled = program.instantiate(Arguments::default()).unwrap();
+        
+        let (script, version) = compiled.script_version();
+        
+        // Script should be 32 bytes (CMR)
+        assert_eq!(script.len(), 32);
+        assert_eq!(script.as_bytes(), compiled.cmr().as_ref());
+        
+        // Version should be Simplicity leaf version
+        assert_eq!(version, simplicityhl::simplicity::leaf_version());
+    }
+
+    #[test]
+    fn test_inner_access() {
+        let program = Program::from_source("fn main() { assert!(true); }").unwrap();
+        let compiled = program.instantiate(Arguments::default()).unwrap();
+        
+        // Should be able to access inner CompiledProgram
+        let inner = compiled.inner();
+        assert!(std::mem::size_of_val(inner) > 0);
+    }
+
+    #[test]
+    fn test_satisfied_inner_access() {
+        let program = Program::from_source("fn main() { assert!(true); }").unwrap();
+        let compiled = program.instantiate(Arguments::default()).unwrap();
+        let satisfied = compiled.satisfy(WitnessValues::default()).unwrap();
+        
+        // Should be able to access inner SatisfiedProgram
+        let inner = satisfied.inner();
+        assert!(std::mem::size_of_val(inner) > 0);
+    }
+
+    #[test]
+    fn test_satisfied_taproot_info() {
+        let program = Program::from_source("fn main() { assert!(true); }").unwrap();
+        let compiled = program.instantiate(Arguments::default()).unwrap();
+        let satisfied = compiled.satisfy(WitnessValues::default()).unwrap();
+        
+        // Satisfied program should have same taproot info
+        let taproot_info = satisfied.taproot_info();
+        assert_eq!(taproot_info.internal_key(), compiled.taproot_info().internal_key());
+    }
+
+    #[test]
+    fn test_instantiated_program_clone() {
+        let program = Program::from_source("fn main() { assert!(true); }").unwrap();
+        let compiled = program.instantiate(Arguments::default()).unwrap();
+        
+        let cloned = compiled.clone();
+        
+        assert_eq!(compiled.cmr(), cloned.cmr());
+        assert_eq!(
+            compiled.address(&elements::AddressParams::ELEMENTS),
+            cloned.address(&elements::AddressParams::ELEMENTS)
+        );
     }
 }

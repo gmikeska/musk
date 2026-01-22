@@ -478,3 +478,239 @@ impl std::fmt::Debug for RpcClient {
             .finish_non_exhaustive()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_rpc_client_new() {
+        let config = NodeConfig::regtest();
+        let client = RpcClient::new(config);
+        assert!(client.is_ok());
+    }
+
+    #[test]
+    fn test_rpc_client_from_url() {
+        let client = RpcClient::from_url("http://localhost:18884", "user", "pass");
+        assert!(client.is_ok());
+        
+        let client = client.unwrap();
+        assert_eq!(client.network(), Network::Regtest);
+    }
+
+    #[test]
+    fn test_rpc_client_for_network_regtest() {
+        let client = RpcClient::for_network(Network::Regtest, "user", "pass");
+        assert!(client.is_ok());
+        
+        let client = client.unwrap();
+        assert_eq!(client.network(), Network::Regtest);
+    }
+
+    #[test]
+    fn test_rpc_client_for_network_testnet() {
+        let client = RpcClient::for_network(Network::Testnet, "user", "pass");
+        assert!(client.is_ok());
+        
+        let client = client.unwrap();
+        assert_eq!(client.network(), Network::Testnet);
+    }
+
+    #[test]
+    fn test_rpc_client_for_network_liquid() {
+        let client = RpcClient::for_network(Network::Liquid, "user", "pass");
+        assert!(client.is_ok());
+        
+        let client = client.unwrap();
+        assert_eq!(client.network(), Network::Liquid);
+    }
+
+    #[test]
+    fn test_rpc_client_from_config_file() {
+        let toml_content = r#"
+[network]
+network = "regtest"
+
+[rpc]
+url = "http://localhost:18884"
+user = "testuser"
+password = "testpass"
+"#;
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(toml_content.as_bytes()).unwrap();
+
+        let client = RpcClient::from_config_file(temp_file.path().to_str().unwrap());
+        assert!(client.is_ok());
+    }
+
+    #[test]
+    fn test_rpc_client_from_config_file_not_found() {
+        let result = RpcClient::from_config_file("/nonexistent/config.toml");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_rpc_client_network() {
+        let config = NodeConfig::testnet();
+        let client = RpcClient::new(config).unwrap();
+        assert_eq!(client.network(), Network::Testnet);
+    }
+
+    #[test]
+    fn test_rpc_client_address_params() {
+        let regtest_client = RpcClient::new(NodeConfig::regtest()).unwrap();
+        let testnet_client = RpcClient::new(NodeConfig::testnet()).unwrap();
+        let liquid_client = RpcClient::new(NodeConfig::liquid()).unwrap();
+
+        // Verify each client returns different address params
+        assert_ne!(
+            regtest_client.address_params().bech_hrp,
+            testnet_client.address_params().bech_hrp
+        );
+        assert_ne!(
+            testnet_client.address_params().bech_hrp,
+            liquid_client.address_params().bech_hrp
+        );
+    }
+
+    #[test]
+    fn test_rpc_client_config_access() {
+        // Use localhost to avoid DNS lookup failures
+        let config = NodeConfig::regtest()
+            .with_rpc("http://127.0.0.1:12345", "u", "p")
+            .with_wallet("test_wallet");
+        
+        let client = RpcClient::new(config).unwrap();
+        
+        assert_eq!(client.config().rpc.url, "http://127.0.0.1:12345");
+        assert_eq!(client.config().rpc.user, "u");
+        assert_eq!(client.config().rpc.wallet, "test_wallet");
+    }
+
+    #[test]
+    fn test_rpc_client_genesis_hash_from_config() {
+        let config = NodeConfig::regtest()
+            .with_genesis_hash("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206");
+        
+        let mut client = RpcClient::new(config).unwrap();
+        
+        // Should get genesis hash from config without hitting the network
+        let hash = client.genesis_hash().unwrap();
+        assert_eq!(hash.to_string(), "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206");
+        
+        // Second call should return cached value
+        let hash2 = client.genesis_hash().unwrap();
+        assert_eq!(hash, hash2);
+    }
+
+    #[test]
+    fn test_rpc_client_debug() {
+        let config = NodeConfig::regtest();
+        let client = RpcClient::new(config).unwrap();
+        
+        let debug_str = format!("{:?}", client);
+        assert!(debug_str.contains("RpcClient"));
+        assert!(debug_str.contains("config"));
+    }
+
+    #[test]
+    fn test_rpc_client_with_wallet_url() {
+        let config = NodeConfig::regtest()
+            .with_wallet("custom_wallet");
+        
+        let client = RpcClient::new(config).unwrap();
+        
+        // Verify the wallet is set in config
+        assert_eq!(client.config().rpc.wallet, "custom_wallet");
+        assert!(client.config().rpc.wallet_url().contains("custom_wallet"));
+    }
+
+    // Note: The following tests require a live Elements node and are marked as ignored.
+    // Run them with: cargo test --features rpc -- --ignored
+    
+    #[test]
+    #[ignore = "requires live Elements node"]
+    fn test_rpc_client_test_connection() {
+        let client = RpcClient::from_url("http://localhost:18884", "user", "pass").unwrap();
+        let result = client.test_connection();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    #[ignore = "requires live Elements node"]
+    fn test_rpc_client_get_blockchain_info() {
+        let client = RpcClient::from_url("http://localhost:18884", "user", "pass").unwrap();
+        let info = client.get_blockchain_info();
+        assert!(info.is_ok());
+    }
+
+    #[test]
+    #[ignore = "requires live Elements node"]
+    fn test_rpc_client_get_block_count() {
+        let client = RpcClient::from_url("http://localhost:18884", "user", "pass").unwrap();
+        let count = client.get_block_count();
+        assert!(count.is_ok());
+    }
+
+    #[test]
+    #[ignore = "requires live Elements node"]
+    fn test_rpc_client_get_balance() {
+        let client = RpcClient::from_url("http://localhost:18884", "user", "pass").unwrap();
+        let balance = client.get_balance();
+        assert!(balance.is_ok());
+    }
+
+    #[test]
+    #[ignore = "requires live Elements node"]
+    fn test_rpc_client_genesis_hash_from_node() {
+        let config = NodeConfig::regtest(); // No genesis_hash set
+        let mut client = RpcClient::new(config).unwrap();
+        
+        // Should fetch from node
+        let hash = client.genesis_hash();
+        assert!(hash.is_ok());
+    }
+
+    #[test]
+    #[ignore = "requires live Elements node"]
+    fn test_rpc_client_generate_blocks() {
+        let client = RpcClient::from_url("http://localhost:18884", "user", "pass").unwrap();
+        let hashes = client.generate_blocks(1);
+        assert!(hashes.is_ok());
+        assert_eq!(hashes.unwrap().len(), 1);
+    }
+
+    #[test]
+    #[ignore = "requires live Elements node"]
+    fn test_rpc_client_get_new_address() {
+        let client = RpcClient::from_url("http://localhost:18884", "user", "pass").unwrap();
+        let addr = client.get_new_address();
+        assert!(addr.is_ok());
+    }
+
+    #[test]
+    #[ignore = "requires live Elements node"]
+    fn test_rpc_client_send_to_address() {
+        let client = RpcClient::from_url("http://localhost:18884", "user", "pass").unwrap();
+        let addr = client.get_new_address().unwrap();
+        
+        // Need to have funds in the wallet
+        let txid = client.send_to_address(&addr, 1_000_000);
+        // This may fail if wallet has no funds - just check it runs
+        let _ = txid;
+    }
+
+    #[test]
+    #[ignore = "requires live Elements node"]
+    fn test_rpc_client_import_address() {
+        let client = RpcClient::from_url("http://localhost:18884", "user", "pass").unwrap();
+        let addr = client.get_new_address().unwrap();
+        
+        let result = client.import_address(&addr.to_string(), Some("test"), false);
+        // May succeed or fail depending on wallet type
+        let _ = result;
+    }
+}

@@ -312,6 +312,8 @@ pub enum ConfigError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn test_default_config() {
@@ -329,6 +331,14 @@ mod tests {
         let mut custom_config = NodeConfig::default();
         custom_config.rpc.wallet = "samplicity".to_string();
         assert_eq!(custom_config.rpc.wallet_url(), "http://127.0.0.1:18884/wallet/samplicity");
+    }
+
+    #[test]
+    fn test_wallet_url_trailing_slash() {
+        let mut config = NodeConfig::default();
+        config.rpc.url = "http://127.0.0.1:18884/".to_string();
+        // Should handle trailing slash gracefully
+        assert_eq!(config.rpc.wallet_url(), "http://127.0.0.1:18884/wallet/musk");
     }
 
     #[test]
@@ -371,9 +381,278 @@ password = "elementspass"
     }
 
     #[test]
+    fn test_parse_toml_liquid_network() {
+        let toml_str = r#"
+[network]
+network = "liquidv1"
+
+[rpc]
+url = "http://localhost:7041"
+user = "user"
+password = "pass"
+"#;
+        let config = NodeConfig::from_toml(toml_str).unwrap();
+        assert_eq!(config.network(), Network::Liquid);
+    }
+
+    #[test]
+    fn test_parse_toml_invalid() {
+        let toml_str = "this is not valid toml {{{";
+        let result = NodeConfig::from_toml(toml_str);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ConfigError::Parse(_)));
+    }
+
+    #[test]
     fn test_network_params() {
         assert_eq!(Network::Regtest.default_rpc_port(), 18884);
         assert_eq!(Network::Testnet.default_rpc_port(), 18892);
         assert_eq!(Network::Liquid.default_rpc_port(), 7041);
+    }
+
+    #[test]
+    fn test_network_address_params() {
+        // Verify we get the correct address params for each network
+        let regtest_params = Network::Regtest.address_params();
+        let testnet_params = Network::Testnet.address_params();
+        let liquid_params = Network::Liquid.address_params();
+
+        // All should return valid params (different from each other)
+        assert_ne!(regtest_params.bech_hrp, testnet_params.bech_hrp);
+        assert_ne!(testnet_params.bech_hrp, liquid_params.bech_hrp);
+    }
+
+    #[test]
+    fn test_network_default_rpc_url() {
+        assert_eq!(Network::Regtest.default_rpc_url(), "http://127.0.0.1:18884");
+        assert_eq!(Network::Testnet.default_rpc_url(), "http://127.0.0.1:18892");
+        assert_eq!(Network::Liquid.default_rpc_url(), "http://127.0.0.1:7041");
+    }
+
+    #[test]
+    fn test_network_display() {
+        assert_eq!(format!("{}", Network::Regtest), "regtest");
+        assert_eq!(format!("{}", Network::Testnet), "testnet");
+        assert_eq!(format!("{}", Network::Liquid), "liquidv1");
+    }
+
+    #[test]
+    fn test_network_default() {
+        let network: Network = Default::default();
+        assert_eq!(network, Network::Regtest);
+    }
+
+    #[test]
+    fn test_rpc_config_default() {
+        let rpc = RpcConfig::default();
+        assert_eq!(rpc.url, "http://127.0.0.1:18884");
+        assert_eq!(rpc.user, "user");
+        assert_eq!(rpc.password, "password");
+        assert_eq!(rpc.wallet, "musk");
+    }
+
+    #[test]
+    fn test_rpc_config_for_network() {
+        let regtest_rpc = RpcConfig::for_network(Network::Regtest);
+        assert_eq!(regtest_rpc.url, "http://127.0.0.1:18884");
+
+        let testnet_rpc = RpcConfig::for_network(Network::Testnet);
+        assert_eq!(testnet_rpc.url, "http://127.0.0.1:18892");
+
+        let liquid_rpc = RpcConfig::for_network(Network::Liquid);
+        assert_eq!(liquid_rpc.url, "http://127.0.0.1:7041");
+    }
+
+    #[test]
+    fn test_node_config_testnet() {
+        let config = NodeConfig::testnet();
+        assert_eq!(config.network(), Network::Testnet);
+        assert_eq!(config.rpc.url, "http://127.0.0.1:18892");
+    }
+
+    #[test]
+    fn test_node_config_liquid() {
+        let config = NodeConfig::liquid();
+        assert_eq!(config.network(), Network::Liquid);
+        assert_eq!(config.rpc.url, "http://127.0.0.1:7041");
+    }
+
+    #[test]
+    fn test_node_config_set_network() {
+        let mut config = NodeConfig::regtest();
+        assert_eq!(config.network(), Network::Regtest);
+        
+        config.set_network(Network::Testnet);
+        assert_eq!(config.network(), Network::Testnet);
+        
+        config.set_network(Network::Liquid);
+        assert_eq!(config.network(), Network::Liquid);
+    }
+
+    #[test]
+    fn test_node_config_with_rpc() {
+        let config = NodeConfig::regtest()
+            .with_rpc("http://custom:1234", "myuser", "mypass");
+        
+        assert_eq!(config.rpc.url, "http://custom:1234");
+        assert_eq!(config.rpc.user, "myuser");
+        assert_eq!(config.rpc.password, "mypass");
+        // Wallet should be preserved
+        assert_eq!(config.rpc.wallet, "musk");
+    }
+
+    #[test]
+    fn test_node_config_with_wallet() {
+        let config = NodeConfig::regtest()
+            .with_wallet("custom_wallet");
+        
+        assert_eq!(config.rpc.wallet, "custom_wallet");
+    }
+
+    #[test]
+    fn test_node_config_with_genesis_hash() {
+        let config = NodeConfig::regtest()
+            .with_genesis_hash("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206");
+        
+        assert_eq!(
+            config.chain.genesis_hash,
+            Some("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206".to_string())
+        );
+    }
+
+    #[test]
+    fn test_node_config_genesis_hash_missing() {
+        let config = NodeConfig::regtest();
+        let result = config.genesis_hash();
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ConfigError::MissingGenesisHash));
+    }
+
+    #[test]
+    fn test_node_config_genesis_hash_invalid() {
+        let config = NodeConfig::regtest()
+            .with_genesis_hash("not_a_valid_hash");
+        let result = config.genesis_hash();
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ConfigError::InvalidGenesisHash(_)));
+    }
+
+    #[test]
+    fn test_node_config_genesis_hash_valid() {
+        let config = NodeConfig::regtest()
+            .with_genesis_hash("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206");
+        let hash = config.genesis_hash().unwrap();
+        assert_eq!(hash.to_string(), "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206");
+    }
+
+    #[test]
+    fn test_node_config_address_params() {
+        let regtest = NodeConfig::regtest();
+        let testnet = NodeConfig::testnet();
+        let liquid = NodeConfig::liquid();
+
+        // Verify each config returns different address params
+        assert_ne!(regtest.address_params().bech_hrp, testnet.address_params().bech_hrp);
+        assert_ne!(testnet.address_params().bech_hrp, liquid.address_params().bech_hrp);
+    }
+
+    #[test]
+    fn test_node_config_to_toml() {
+        let config = NodeConfig::regtest()
+            .with_rpc("http://localhost:18884", "testuser", "testpass")
+            .with_wallet("test_wallet")
+            .with_genesis_hash("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206");
+        
+        let toml_str = config.to_toml().unwrap();
+        
+        // Parse it back
+        let parsed = NodeConfig::from_toml(&toml_str).unwrap();
+        assert_eq!(parsed.network(), Network::Regtest);
+        assert_eq!(parsed.rpc.url, "http://localhost:18884");
+        assert_eq!(parsed.rpc.user, "testuser");
+        assert_eq!(parsed.rpc.password, "testpass");
+        assert_eq!(parsed.rpc.wallet, "test_wallet");
+        assert_eq!(
+            parsed.chain.genesis_hash,
+            Some("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206".to_string())
+        );
+    }
+
+    #[test]
+    fn test_node_config_from_file() {
+        let toml_content = r#"
+[network]
+network = "testnet"
+
+[rpc]
+url = "http://localhost:18892"
+user = "fileuser"
+password = "filepass"
+wallet = "file_wallet"
+
+[chain]
+genesis_hash = "abc123"
+"#;
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(toml_content.as_bytes()).unwrap();
+        
+        let config = NodeConfig::from_file(temp_file.path()).unwrap();
+        assert_eq!(config.network(), Network::Testnet);
+        assert_eq!(config.rpc.user, "fileuser");
+        assert_eq!(config.rpc.wallet, "file_wallet");
+    }
+
+    #[test]
+    fn test_node_config_from_file_not_found() {
+        let result = NodeConfig::from_file("/nonexistent/path/config.toml");
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ConfigError::Io(_)));
+    }
+
+    #[test]
+    fn test_node_config_save() {
+        let config = NodeConfig::testnet()
+            .with_rpc("http://localhost:18892", "saveuser", "savepass");
+        
+        let temp_file = NamedTempFile::new().unwrap();
+        config.save(temp_file.path()).unwrap();
+        
+        // Read back
+        let loaded = NodeConfig::from_file(temp_file.path()).unwrap();
+        assert_eq!(loaded.network(), Network::Testnet);
+        assert_eq!(loaded.rpc.user, "saveuser");
+    }
+
+    #[test]
+    fn test_config_error_display() {
+        let io_err = ConfigError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "test"));
+        assert!(io_err.to_string().contains("IO error"));
+
+        let missing = ConfigError::MissingGenesisHash;
+        assert!(missing.to_string().contains("genesis hash"));
+
+        let invalid = ConfigError::InvalidGenesisHash("bad hash".to_string());
+        assert!(invalid.to_string().contains("Invalid genesis hash"));
+    }
+
+    #[test]
+    fn test_chain_config_default() {
+        let chain = ChainConfig::default();
+        assert!(chain.genesis_hash.is_none());
+    }
+
+    #[test]
+    fn test_builder_chain() {
+        // Test chaining multiple builder methods
+        let config = NodeConfig::regtest()
+            .with_rpc("http://custom:1234", "u", "p")
+            .with_wallet("w")
+            .with_genesis_hash("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206");
+        
+        assert_eq!(config.rpc.url, "http://custom:1234");
+        assert_eq!(config.rpc.user, "u");
+        assert_eq!(config.rpc.password, "p");
+        assert_eq!(config.rpc.wallet, "w");
+        assert!(config.chain.genesis_hash.is_some());
     }
 }

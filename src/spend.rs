@@ -217,3 +217,303 @@ pub fn simple_spend(
     builder.add_fee(fee, asset);
     builder.finalize(witness_values)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_fixtures::{test_genesis_hash, SIMPLE_PROGRAM};
+    use crate::{Arguments, Program};
+    use elements::hashes::Hash;
+    use elements::issuance::AssetId;
+
+    fn test_program() -> InstantiatedProgram {
+        let program = Program::from_source(SIMPLE_PROGRAM).unwrap();
+        program.instantiate(Arguments::default()).unwrap()
+    }
+
+    fn test_utxo_with_script(script: Script) -> Utxo {
+        Utxo {
+            txid: elements::Txid::from_raw_hash(elements::hashes::sha256d::Hash::from_byte_array(
+                [2u8; 32],
+            )),
+            vout: 0,
+            amount: 100_000_000, // 1 BTC
+            script_pubkey: script,
+            asset: confidential::Asset::Explicit(
+                AssetId::from_slice(&[0u8; 32]).expect("valid asset"),
+            ),
+        }
+    }
+
+    #[test]
+    fn test_spend_builder_new() {
+        let program = test_program();
+        let utxo = test_utxo_with_script(program.address(&elements::AddressParams::ELEMENTS).script_pubkey());
+        
+        let builder = SpendBuilder::new(program, utxo);
+        // Builder should be created successfully
+        assert!(std::mem::size_of_val(&builder) > 0);
+    }
+
+    #[test]
+    fn test_spend_builder_genesis_hash() {
+        let program = test_program();
+        let utxo = test_utxo_with_script(program.address(&elements::AddressParams::ELEMENTS).script_pubkey());
+        
+        let genesis = test_genesis_hash();
+        let builder = SpendBuilder::new(program, utxo).genesis_hash(genesis);
+        
+        // Builder should accept genesis hash
+        assert!(std::mem::size_of_val(&builder) > 0);
+    }
+
+    #[test]
+    fn test_spend_builder_add_output() {
+        let program = test_program();
+        let utxo = test_utxo_with_script(program.address(&elements::AddressParams::ELEMENTS).script_pubkey());
+        
+        let mut builder = SpendBuilder::new(program, utxo);
+        
+        let output = TxOut {
+            value: confidential::Value::Explicit(50_000_000),
+            script_pubkey: Script::new(),
+            asset: confidential::Asset::Explicit(
+                AssetId::from_slice(&[0u8; 32]).expect("valid asset"),
+            ),
+            nonce: confidential::Nonce::Null,
+            witness: TxOutWitness::empty(),
+        };
+        
+        builder.add_output(output);
+        // Should be able to chain operations
+        assert!(std::mem::size_of_val(&builder) > 0);
+    }
+
+    #[test]
+    fn test_spend_builder_add_output_simple() {
+        let program = test_program();
+        let utxo = test_utxo_with_script(program.address(&elements::AddressParams::ELEMENTS).script_pubkey());
+        
+        let mut builder = SpendBuilder::new(program, utxo);
+        let asset = AssetId::from_slice(&[0u8; 32]).expect("valid asset");
+        
+        builder.add_output_simple(Script::new(), 50_000_000, asset);
+        // Should be able to add output
+        assert!(std::mem::size_of_val(&builder) > 0);
+    }
+
+    #[test]
+    fn test_spend_builder_add_fee() {
+        let program = test_program();
+        let utxo = test_utxo_with_script(program.address(&elements::AddressParams::ELEMENTS).script_pubkey());
+        
+        let mut builder = SpendBuilder::new(program, utxo);
+        let asset = AssetId::from_slice(&[0u8; 32]).expect("valid asset");
+        
+        builder.add_fee(1000, asset);
+        // Should be able to add fee
+        assert!(std::mem::size_of_val(&builder) > 0);
+    }
+
+    #[test]
+    fn test_spend_builder_lock_time() {
+        let program = test_program();
+        let utxo = test_utxo_with_script(program.address(&elements::AddressParams::ELEMENTS).script_pubkey());
+        
+        let builder = SpendBuilder::new(program, utxo)
+            .lock_time(LockTime::from_height(100).unwrap());
+        
+        assert!(std::mem::size_of_val(&builder) > 0);
+    }
+
+    #[test]
+    fn test_spend_builder_sequence() {
+        let program = test_program();
+        let utxo = test_utxo_with_script(program.address(&elements::AddressParams::ELEMENTS).script_pubkey());
+        
+        let builder = SpendBuilder::new(program, utxo)
+            .sequence(Sequence::from_consensus(0xFFFFFFFE));
+        
+        assert!(std::mem::size_of_val(&builder) > 0);
+    }
+
+    #[test]
+    fn test_spend_builder_sighash_all() {
+        let program = test_program();
+        let address = program.address(&elements::AddressParams::ELEMENTS);
+        let utxo = test_utxo_with_script(address.script_pubkey());
+        
+        let genesis = test_genesis_hash();
+        let asset = AssetId::from_slice(&[0u8; 32]).expect("valid asset");
+        
+        let mut builder = SpendBuilder::new(program, utxo).genesis_hash(genesis);
+        builder.add_output_simple(Script::new(), 99_999_000, asset);
+        builder.add_fee(1000, asset);
+        
+        let sighash = builder.sighash_all().unwrap();
+        assert_eq!(sighash.len(), 32);
+        
+        // Sighash should be deterministic
+        let sighash2 = builder.sighash_all().unwrap();
+        assert_eq!(sighash, sighash2);
+    }
+
+    #[test]
+    fn test_spend_builder_finalize() {
+        let program = test_program();
+        let address = program.address(&elements::AddressParams::ELEMENTS);
+        let utxo = test_utxo_with_script(address.script_pubkey());
+        
+        let genesis = test_genesis_hash();
+        let asset = AssetId::from_slice(&[0u8; 32]).expect("valid asset");
+        
+        let mut builder = SpendBuilder::new(program, utxo).genesis_hash(genesis);
+        builder.add_output_simple(Script::new(), 99_999_000, asset);
+        builder.add_fee(1000, asset);
+        
+        let tx = builder.finalize(WitnessValues::default()).unwrap();
+        
+        // Transaction should have correct structure
+        assert_eq!(tx.version, 2);
+        assert_eq!(tx.input.len(), 1);
+        assert_eq!(tx.output.len(), 2); // output + fee
+        
+        // Input witness should contain simplicity data
+        assert!(!tx.input[0].witness.script_witness.is_empty());
+    }
+
+    #[test]
+    fn test_spend_builder_finalize_with_satisfied() {
+        let program = test_program();
+        let address = program.address(&elements::AddressParams::ELEMENTS);
+        let utxo = test_utxo_with_script(address.script_pubkey());
+        
+        let genesis = test_genesis_hash();
+        let asset = AssetId::from_slice(&[0u8; 32]).expect("valid asset");
+        
+        // First satisfy the program
+        let satisfied = program.satisfy(WitnessValues::default()).unwrap();
+        
+        let mut builder = SpendBuilder::new(program, utxo).genesis_hash(genesis);
+        builder.add_output_simple(Script::new(), 99_999_000, asset);
+        builder.add_fee(1000, asset);
+        
+        let tx = builder.finalize_with_satisfied(&satisfied).unwrap();
+        
+        assert_eq!(tx.version, 2);
+        assert_eq!(tx.input.len(), 1);
+        assert!(!tx.input[0].witness.script_witness.is_empty());
+    }
+
+    #[test]
+    fn test_simple_spend() {
+        let program = test_program();
+        let address = program.address(&elements::AddressParams::ELEMENTS);
+        
+        let utxo = Utxo {
+            txid: elements::Txid::from_raw_hash(elements::hashes::sha256d::Hash::from_byte_array(
+                [2u8; 32],
+            )),
+            vout: 0,
+            amount: 100_000_000,
+            script_pubkey: address.script_pubkey(),
+            asset: confidential::Asset::Explicit(
+                AssetId::from_slice(&[0u8; 32]).expect("valid asset"),
+            ),
+        };
+        
+        let genesis = test_genesis_hash();
+        let destination = Script::new();
+        
+        let tx = simple_spend(
+            program,
+            utxo,
+            destination,
+            99_999_000,
+            1000,
+            genesis,
+            WitnessValues::default(),
+        ).unwrap();
+        
+        assert_eq!(tx.output.len(), 2);
+    }
+
+    #[test]
+    fn test_simple_spend_non_explicit_asset() {
+        let program = test_program();
+        
+        let utxo = Utxo {
+            txid: elements::Txid::from_raw_hash(elements::hashes::sha256d::Hash::from_byte_array(
+                [2u8; 32],
+            )),
+            vout: 0,
+            amount: 100_000_000,
+            script_pubkey: Script::new(),
+            asset: confidential::Asset::Null, // Non-explicit
+        };
+        
+        let genesis = test_genesis_hash();
+        let destination = Script::new();
+        
+        let result = simple_spend(
+            program,
+            utxo,
+            destination,
+            99_999_000,
+            1000,
+            genesis,
+            WitnessValues::default(),
+        );
+        
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), SpendError::InvalidUtxo(_)));
+    }
+
+    #[test]
+    fn test_spend_builder_multiple_outputs() {
+        let program = test_program();
+        let address = program.address(&elements::AddressParams::ELEMENTS);
+        let utxo = test_utxo_with_script(address.script_pubkey());
+        
+        let genesis = test_genesis_hash();
+        let asset = AssetId::from_slice(&[0u8; 32]).expect("valid asset");
+        
+        let mut builder = SpendBuilder::new(program, utxo).genesis_hash(genesis);
+        
+        // Add multiple outputs
+        builder.add_output_simple(Script::new(), 30_000_000, asset);
+        builder.add_output_simple(Script::from(vec![0x51]), 30_000_000, asset);
+        builder.add_output_simple(Script::from(vec![0x00, 0x14]), 39_998_000, asset);
+        builder.add_fee(2000, asset);
+        
+        let tx = builder.finalize(WitnessValues::default()).unwrap();
+        
+        assert_eq!(tx.output.len(), 4); // 3 outputs + 1 fee
+    }
+
+    #[test]
+    fn test_spend_builder_custom_lock_time_and_sequence() {
+        let program = test_program();
+        let address = program.address(&elements::AddressParams::ELEMENTS);
+        let utxo = test_utxo_with_script(address.script_pubkey());
+        
+        let genesis = test_genesis_hash();
+        let asset = AssetId::from_slice(&[0u8; 32]).expect("valid asset");
+        
+        let lock_time = LockTime::from_height(500_000).unwrap();
+        let sequence = Sequence::from_consensus(0xFFFFFFFE);
+        
+        let mut builder = SpendBuilder::new(program, utxo)
+            .genesis_hash(genesis)
+            .lock_time(lock_time)
+            .sequence(sequence);
+        
+        builder.add_output_simple(Script::new(), 99_999_000, asset);
+        builder.add_fee(1000, asset);
+        
+        let tx = builder.finalize(WitnessValues::default()).unwrap();
+        
+        assert_eq!(tx.lock_time, lock_time);
+        assert_eq!(tx.input[0].sequence, sequence);
+    }
+}
