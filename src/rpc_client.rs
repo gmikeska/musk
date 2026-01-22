@@ -569,6 +569,42 @@ impl RpcClient {
         let tx_hex = serialize_hex(tx);
         self.test_mempool_accept(&tx_hex)
     }
+
+    /// Estimate fee rate using Elements estimatesmartfee RPC
+    ///
+    /// Returns the estimated fee rate in satoshis per kilobyte (sat/kB)
+    /// for a transaction to be confirmed within `conf_target` blocks.
+    ///
+    /// # Arguments
+    ///
+    /// * `conf_target` - Target confirmation time in blocks (1-1008)
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(fee_rate)` if estimation succeeds, `None` if the node
+    /// doesn't have enough data to estimate (e.g., new node, few transactions).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the RPC call fails.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Get fee rate for 6-block confirmation target
+    /// if let Some(fee_rate) = client.estimate_smart_fee(6)? {
+    ///     println!("Fee rate: {} sat/kB", fee_rate);
+    /// }
+    /// ```
+    pub fn estimate_smart_fee(&self, conf_target: u32) -> ClientResult<Option<u64>> {
+        let result: serde_json::Value = self.call("estimatesmartfee", &[conf_target.into()])?;
+        // feerate is in BTC/kvB, convert to sat/kB
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        Ok(result
+            .get("feerate")
+            .and_then(serde_json::Value::as_f64)
+            .map(|btc_per_kvb| (btc_per_kvb * 100_000_000.0) as u64))
+    }
 }
 
 impl NodeClient for RpcClient {
