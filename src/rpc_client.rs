@@ -269,8 +269,7 @@ impl RpcClient {
                     "label": label.unwrap_or("samplicity"),
                 }]);
 
-                let result: serde_json::Value =
-                    self.call("importdescriptors", &[import_req])?;
+                let result: serde_json::Value = self.call("importdescriptors", &[import_req])?;
 
                 // Check if import was successful
                 if let Some(arr) = result.as_array() {
